@@ -1,0 +1,7 @@
+#Wed Oct 28 15:25:39 KST 2026
+base.0=C\:\\TrojanPrototype-character-design\\TrojanPrototype\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
+base.1=C\:\\TrojanPrototype-character-design\\TrojanPrototype\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\6\\classes.dex
+path.0=0/classes.dex
+path.1=6/classes.dex
+renamed.0=classes.dex
+renamed.1=classes2.dex

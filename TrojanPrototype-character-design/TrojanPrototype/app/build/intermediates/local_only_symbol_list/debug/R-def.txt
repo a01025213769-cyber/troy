@@ -1,0 +1,6 @@
+R_DEF: Internal format may change without notice
+local
+drawable achilles_sprite
+drawable greek_sprite
+drawable hector_sprite
+drawable troy_sprite

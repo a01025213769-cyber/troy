@@ -1,0 +1,4 @@
+com.example.trojanprototype:drawable/troy_sprite = 0x7f010003
+com.example.trojanprototype:drawable/hector_sprite = 0x7f010002
+com.example.trojanprototype:drawable/greek_sprite = 0x7f010001
+com.example.trojanprototype:drawable/achilles_sprite = 0x7f010000

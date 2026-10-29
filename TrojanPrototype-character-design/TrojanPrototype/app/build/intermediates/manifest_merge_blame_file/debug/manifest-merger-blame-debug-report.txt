@@ -1,0 +1,43 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.example.trojanprototype"
+4    android:versionCode="1"
+5    android:versionName="0.1" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="23"
+9        android:targetSdkVersion="35" />
+10
+11    <application
+11-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:2:5-9:19
+12        android:debuggable="true"
+13        android:extractNativeLibs="false"
+14        android:label="일리아스: 트로이의 밤"
+14-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:2:82-110
+15        android:testOnly="true"
+16        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+16-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:2:18-81
+17        android:usesCleartextTraffic="false" >
+17-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:2:111-147
+18        <activity
+18-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:3:9-8:20
+19            android:name="com.example.trojanprototype.MainActivity"
+19-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:3:19-47
+20            android:exported="true"
+20-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:3:86-109
+21            android:screenOrientation="landscape" >
+21-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:3:48-85
+22            <intent-filter>
+22-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:4:13-7:29
+23                <action android:name="android.intent.action.MAIN" />
+23-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:5:17-69
+23-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:5:25-66
+24
+25                <category android:name="android.intent.category.LAUNCHER" />
+25-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:6:17-77
+25-->C:\TrojanPrototype-character-design\TrojanPrototype\app\src\main\AndroidManifest.xml:6:27-74
+26            </intent-filter>
+27        </activity>
+28    </application>
+29
+30</manifest>

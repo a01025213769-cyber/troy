@@ -1,0 +1,18 @@
+[
+    {
+        "merged": "com.example.trojanprototype.app-merged_res-4:/drawable-nodpi_greek_sprite.png.flat",
+        "source": "com.example.trojanprototype.app-main-6:/drawable-nodpi/greek_sprite.png"
+    },
+    {
+        "merged": "com.example.trojanprototype.app-merged_res-4:/drawable-nodpi_troy_sprite.png.flat",
+        "source": "com.example.trojanprototype.app-main-6:/drawable-nodpi/troy_sprite.png"
+    },
+    {
+        "merged": "com.example.trojanprototype.app-merged_res-4:/drawable-nodpi_hector_sprite.png.flat",
+        "source": "com.example.trojanprototype.app-main-6:/drawable-nodpi/hector_sprite.png"
+    },
+    {
+        "merged": "com.example.trojanprototype.app-merged_res-4:/drawable-nodpi_achilles_sprite.png.flat",
+        "source": "com.example.trojanprototype.app-main-6:/drawable-nodpi/achilles_sprite.png"
+    }
+]
