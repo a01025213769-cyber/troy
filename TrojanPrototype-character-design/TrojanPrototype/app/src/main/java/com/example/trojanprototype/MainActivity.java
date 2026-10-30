@@ -29,14 +29,25 @@ public class MainActivity extends Activity {
         final Paint spritePaint = new Paint();
         final Bitmap achillesSprite, hectorSprite, greekSprite, troySprite;
         final Random random = new Random();
-        int scene = 0; // 0 story, 1 battlefield, 2 boss, 3 ending
-        int heroHp = 100, enemyHp = 100, energy = 25, defeated = 0, turn = 0;
-        boolean guarding = false, flash = false;
-        long flashAt = 0;
-        float scaleX, scaleY;
-        String toast = "전장을 향해 나아가라";
-        String[] story = {"트로이의 성벽 아래, 전쟁은 열 번째 해를 맞았다.", "아킬레우스여, 분노를 거두고 전우와 함께 싸워라.", "수많은 병사를 지나, 헥토르와 결판을 내라."};
+        int scene = 0; // story, crowd battle, boss battle, chapter result
+        int chapter = 0, heroHp = 100, enemyHp = 100, energy = 25, defeated = 0;
+        boolean guarding = false, flash = false, gameWon = true;
+        long flashAt = 0, bossActionAt = 0;
+        float scaleX, scaleY, heroX = 270, hectorX = 685;
+        int bossState = 0; // 0 approach, 1 windup, 2 recovery
+        String toast = "이야기를 따라 전장으로";
         int storyIndex = 0;
+        final String[][] dialogue = {
+                {"나레이션|올림포스의 연회에서 황금 사과 하나가 신들의 다툼을 불렀다.", "파리스|가장 아름다운 여신을 고르라고요? 그 선택이 전쟁으로 번질 줄은 몰랐습니다.", "나레이션|파리스와 헬레네를 둘러싼 선택은 그리스 연합군을 트로이로 이끈다."},
+                {"나레이션|전쟁은 열 번째 해. 아킬레우스가 이끄는 그리스군이 트로이 성벽 아래에 섰다.", "헥토르|아킬레우스, 병사들 뒤에 숨지 마라. 오늘은 내가 직접 너와 겨루겠다.", "아킬레우스|전열을 뚫고 네 앞에 서겠다. 이 결투로 전쟁의 분노를 끝내자."},
+                {"나레이션|긴 포위 끝에 그리스군은 거대한 목마를 남기고 해안으로 물러났다.", "트로이 병사|적이 떠났다! 목마를 성안으로 들여 승리를 기념하자.", "나레이션|밤이 깊었다. 목마 속 병사들이 성문을 열기 위해 움직이기 시작한다."}
+        };
+        final String[][] narration = {
+                {"황금 사과를 둘러싼 신들의 다툼이 인간 세계의 갈등으로 번진다.", "파리스의 선택과 헬레네의 이주는 전쟁의 불씨가 된다.", "그리스 연합군이 트로이를 향해 출정한다. 적 전열을 돌파하라."},
+                {"전쟁의 향방은 영웅들의 선택과 전우애, 분노에 흔들린다.", "헥토르가 결투를 청한다. 그리스군과 함께 트로이 전열을 무너뜨려라.", "병사들을 물리쳤다. 이제 헥토르와 직접 결투한다."},
+                {"그리스군은 목마를 남긴 채 물러나는 계략을 썼다.", "트로이군은 목마를 성안으로 옮겨 경계를 풀었다.", "성문을 열고 트로이군의 마지막 저항을 물리쳐라."}
+        };
+        final String[] chapterTitles = {"불화의 시작과 전쟁의 발발", "아킬레우스와 헥토르", "트로이의 함락과 귀향"};
 
         GameView() {
             super(MainActivity.this);
@@ -74,18 +85,20 @@ public class MainActivity extends Activity {
         }
         void drawStory(Canvas c) {
             box(c,52,48,908,492,0xe8171d25,20);
-            text(c,scene==3?"전투 기록":"일리아스 · 트로이의 밤",88,103,19,0xffffcb7a,true);
-            text(c,scene==3?"제1장 완료":"PROLOGUE",88,145,13,0xff9eb1be,true);
+            text(c,scene==3?"전투 결과":"트로이 전쟁 · 제 " +(chapter+1)+"장",88,103,19,0xffffcb7a,true);
+            text(c,chapterTitles[chapter],88,145,15,0xff9eb1be,true);
             if(scene==0){
-                text(c,story[storyIndex],88,230,27,Color.WHITE,true);
-                text(c,"창과 방패를 들고 트로이 전선으로 진입한다.",88,272,17,0xffc8d1d6,false);
-                text(c,"스토리 컷신  ·  탭하여 다음 장면",88,405,14,0xffd6aa69,false);
+                String[] line=dialogue[chapter][storyIndex].split("\\|",2);
+                text(c,line[0],88,204,16,0xffffce82,true);
+                text(c,line.length>1?line[1]:"",88,248,22,Color.WHITE,true);
+                text(c,"해설  ·  "+narration[chapter][storyIndex],88,302,16,0xffc8d1d6,false);
+                text(c,"대화와 나레이션  ·  탭하여 계속",88,405,14,0xffd6aa69,false);
             } else {
-                text(c,"헥토르가 쓰러지고, 트로이의 밤은 잠시 고요해졌다.",88,225,24,Color.WHITE,true);
-                text(c,"전투 결과  ·  처치한 병사  "+defeated,88,274,17,0xffc8d1d6,false);
-                text(c,"화면을 탭해 처음부터 다시 플레이",88,405,14,0xffd6aa69,false);
+                text(c,gameWon?(chapter==1?"헥토르와의 결투에서 승리했다.":chapter==2?"트로이는 함락되고 오디세우스는 귀향길에 오른다.":"그리스 연합군이 첫 전투에서 승리했다."):"전투에서 패배했다. 전열을 가다듬고 다시 도전하자.",88,225,22,Color.WHITE,true);
+                text(c,"전투 결과  ·  격파한 적 전열  "+defeated,88,274,17,0xffc8d1d6,false);
+                text(c,gameWon&&chapter<2?"탭하여 다음 이야기로": "탭하여 다시 시작",88,405,14,0xffd6aa69,false);
             }
-            box(c,690,430,860,475,0xffd49b55,24); text(c,scene==3?"다시 시작":"계속  →",721,459,17,0xff1d2025,true);
+            box(c,690,430,860,475,0xffd49b55,24); text(c,scene==3?(gameWon&&chapter<2?"다음 장":"확인") :"계속  →",721,459,17,0xff1d2025,true);
             // hero vignette
             drawSprite(c,achillesSprite,760,318,116,174,false);
         }
@@ -99,19 +112,27 @@ public class MainActivity extends Activity {
         }
         void drawBattle(Canvas c) {
             box(c,28,20,932,98,0xe8171d25,16);
-            text(c,scene==1?"전선 돌파":"보스전 · 헥토르",52,54,21,0xffffce82,true);
-            text(c,scene==1?"트로이 병사  "+(3-defeated)+"명 남음":"트로이의 왕자와 일대일 결투",52,78,13,0xffd2d8dc,false);
+            text(c,scene==1?chapterTitles[chapter]:"보스전 · 헥토르",52,54,21,0xffffce82,true);
+            text(c,scene==1?"다대다 전투  ·  남은 적 전열 "+(3-defeated)+" / 3":"보스전  ·  트로이의 왕자와 일대일 결투",52,78,13,0xffd2d8dc,false);
             bar(c,620,38,220,19,heroHp,0xff62bc91,"아킬레우스");
             bar(c,620,68,220,16,enemyHp,0xffd45d50,scene==1?"전열":"헥토르");
             if(scene==1) drawCrowd(c); else drawBoss(c);
             // lower HUD
             box(c,26,420,934,520,0xe8171d25,16);
             text(c,toast,48,451,15,0xffffd494,true);
-            text(c,"집중  "+energy+"%",48,487,14,0xffbbcad2,false);
-            box(c,258,438,410,501,0xff40505a,13); text(c,"공격",294,477,18,Color.WHITE,true);
-            box(c,426,438,578,501,0xff40505a,13); text(c,"방어",464,477,18,Color.WHITE,true);
-            box(c,594,438,746,501,energy>=50?0xffb37d45:0xff46515a,13); text(c,"필살기",626,477,18,Color.WHITE,true);
-            box(c,778,438,912,501,0xffd49b55,13); text(c,"다음",817,477,18,0xff1d2025,true);
+            text(c,scene==1?"집중  "+energy+"%":"좌우 이동 · 공격 · 방어",48,487,14,0xffbbcad2,false);
+            if(scene==1){
+                box(c,258,438,410,501,0xff40505a,13); text(c,"공격",294,477,18,Color.WHITE,true);
+                box(c,426,438,578,501,0xff40505a,13); text(c,"방어",464,477,18,Color.WHITE,true);
+                box(c,594,438,746,501,energy>=50?0xffb37d45:0xff46515a,13); text(c,"필살기",626,477,18,Color.WHITE,true);
+                box(c,778,438,912,501,0xffd49b55,13); text(c,"행동",817,477,18,0xff1d2025,true);
+            } else {
+                box(c,48,438,224,501,0xff40505a,13); text(c,"← 이동",96,477,17,Color.WHITE,true);
+                box(c,234,438,410,501,0xff40505a,13); text(c,"이동 →",282,477,17,Color.WHITE,true);
+                box(c,426,438,578,501,0xffa34f3f,13); text(c,"공격",470,477,18,Color.WHITE,true);
+                box(c,594,438,746,501,0xff40505a,13); text(c,"방어",638,477,18,Color.WHITE,true);
+                box(c,778,438,912,501,0xff46515a,13); text(c,"거리",817,477,18,Color.WHITE,true);
+            }
             if(flash && System.currentTimeMillis()-flashAt>180) flash=false;
         }
         void bar(Canvas c,float x,float y,float w,float h,int value,int col,String label){
@@ -119,43 +140,71 @@ public class MainActivity extends Activity {
         }
         void drawCrowd(Canvas c){
             // opposing ranks give the encounter a many-versus-many battlefield feel
-            for(int i=0;i<8;i++){
+            int enemyCount=Math.max(2,8-defeated*2);
+            for(int i=0;i<enemyCount;i++){
                 float x=520+(i%4)*75, y=310+(i/4)*54;
                 drawSprite(c,troySprite,x,y,58,82,true);
             }
-            for(int i=0;i<4;i++){
+            for(int i=0;i<Math.max(2,4-defeated/2);i++){
                 float x=86+i*66; drawSprite(c,greekSprite,x,372,62,82,false);
             }
             drawSprite(c,achillesSprite,370,390,126,190,false);
-            text(c,"아군 진형",78,282,13,0xffe4d6bf,true); text(c,"적군 진형",572,235,13,0xffe4d6bf,true);
+            text(c,"그리스군 · 아킬레우스",78,282,13,0xffe4d6bf,true); text(c,"트로이군",572,235,13,0xffe4d6bf,true);
         }
         void drawBoss(Canvas c){
-            drawSprite(c,achillesSprite,270,395,132,198,false);
-            drawSprite(c,hectorSprite,685,395,136,198,true);
-            text(c,"헥토르",648,245,14,0xffffdfba,true);
-            text(c,"일대일 결투",404,183,16,0xffffdfba,true);
+            drawSprite(c,achillesSprite,heroX,395,132,198,false);
+            drawSprite(c,hectorSprite,hectorX,395,136,198,true);
+            text(c,"헥토르",hectorX-36,245,14,0xffffdfba,true);
+            text(c,"일대일 결투 · 직접 조작",356,174,16,0xffffdfba,true);
+            String ai=bossState==0?"접근 중":bossState==1?"공격 준비 · 방어 가능":"공격 후 빈틈";
+            text(c,"헥토르 AI  ·  "+ai,374,202,13,0xffd2d8dc,false);
         }
         void nextTurn(int damage) {
             if(scene==1) {
                 enemyHp-=damage;
-                if(enemyHp<=0){ defeated++; if(defeated>=3){scene=2;enemyHp=100;toast="헥토르가 결투를 청한다";guarding=false;invalidate();return;} enemyHp=100;toast="적 전열 격파! 다음 병사가 온다";energy=Math.min(100,energy+15); }
+                if(enemyHp<=0){ defeated++; if(defeated>=3){guarding=false;if(chapter==1){scene=2;enemyHp=100;heroX=270;hectorX=685;bossState=0;toast="전열 돌파! 이제 헥토르와 직접 겨룬다";invalidate();}else finishChapter(true);return;} enemyHp=100;toast="적 전열 격파! 아군과 함께 진격한다";energy=Math.min(100,energy+15); }
                 else toast="공격 적중! 적의 반격을 대비하라";
-            } else {
-                enemyHp-=damage;
-                if(enemyHp<=0){scene=3;toast="";invalidate();return;}
-                toast="헥토르의 반격! 방어로 피해를 줄이자";
             }
-            int retaliation=guarding?4:random.nextInt(scene==1?9:13)+8;
+            int retaliation=guarding?4:random.nextInt(9)+8;
             heroHp=Math.max(0,heroHp-retaliation); guarding=false;
-            if(heroHp<=0){scene=3;toast="전투 종료 · 다시 시작해 재도전";}
+            if(heroHp<=0){finishChapter(false);return;}
             energy=Math.min(100,energy+12); flash=true;flashAt=System.currentTimeMillis();invalidate();
         }
-        void reset(){scene=0;storyIndex=0;heroHp=100;enemyHp=100;energy=25;defeated=0;toast="전장을 향해 나아가라";invalidate();}
+        void bossAction(int action){
+            if(action==0) heroX=Math.max(110,heroX-34);
+            else if(action==1) heroX=Math.min(520,heroX+34);
+            else if(action==2){
+                if(Math.abs(hectorX-heroX)<=178){
+                    int damage=bossState==2?32:18; enemyHp-=damage;
+                    toast=bossState==2?"헥토르의 빈틈을 찔렀다!":"공격 적중! 다음 행동을 선택하라";
+                } else toast="사거리가 닿지 않는다 · 가까이 이동하라";
+                if(enemyHp<=0){finishChapter(true);return;}
+            } else { guarding=true; toast="방패를 올렸다 · 헥토르의 공격에 대비한다"; }
+            if(bossState==0){
+                hectorX=Math.max(heroX+92,hectorX-28); bossState=1;
+                if(action!=3)toast="헥토르가 공격을 준비한다 · 방어하라";
+            } else if(bossState==1){
+                if(Math.abs(hectorX-heroX)<175){heroHp=Math.max(0,heroHp-(guarding?5:18));toast=guarding?"방패로 헥토르의 공격을 막았다":"헥토르의 공격을 맞았다 · 방어 타이밍을 노려라";}
+                else toast="헥토르의 공격이 빗나갔다";
+                guarding=false; bossState=2;
+            } else { bossState=0; toast="헥토르가 자세를 다시 잡는다"; }
+            if(heroHp<=0){finishChapter(false);return;}
+            bossActionAt=System.currentTimeMillis(); flash=true;flashAt=bossActionAt;invalidate();
+        }
+        void finishChapter(boolean won){scene=3;gameWon=won;guarding=false;toast="";invalidate();}
+        void beginChapter(int index){chapter=index;storyIndex=0;scene=0;heroHp=100;enemyHp=100;energy=25;defeated=0;heroX=270;hectorX=685;bossState=0;toast="이야기를 따라 전장으로";invalidate();}
+        void reset(){beginChapter(0);}
         @Override public boolean onTouchEvent(MotionEvent e){
             if(e.getAction()!=MotionEvent.ACTION_UP)return true;
             float x=e.getX()/scaleX,y=e.getY()/scaleY;
-            if(scene==0){ if(storyIndex<story.length-1)storyIndex++;else{scene=1;toast="적 병사들의 진형이 다가온다";} invalidate();return true; }
-            if(scene==3){reset();return true;}
+            if(scene==0){ if(storyIndex<dialogue[chapter].length-1)storyIndex++;else{scene=1;toast="양쪽 진형이 맞붙는다 · 적 전열을 돌파하라";} invalidate();return true; }
+            if(scene==3){if(gameWon&&chapter<2)beginChapter(chapter+1);else if(gameWon)reset();else beginChapter(chapter);return true;}
+            if(scene==2){
+                if(y>=420){
+                    if(x<224)bossAction(0);else if(x<410)bossAction(1);else if(x<584)bossAction(2);else if(x<760)bossAction(3);else{toast="이동과 방어로 헥토르의 빈틈을 노려라";invalidate();}
+                } else {toast="헥토르의 움직임을 살펴라 · 하단 버튼으로 직접 조작";invalidate();}
+                return true;
+            }
             if(y<420){ toast=scene==1?"병사들이 진형을 좁힌다":"헥토르가 방패를 겨눈다";invalidate();return true; }
             if(x>=258&&x<418){nextTurn(24);}
             else if(x<584&&x>=418){guarding=true;toast="방패를 올렸다 · 다음 피해 감소";}
