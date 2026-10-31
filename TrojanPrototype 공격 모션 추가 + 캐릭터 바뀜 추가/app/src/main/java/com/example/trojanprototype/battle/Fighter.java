@@ -388,7 +388,10 @@ public class Fighter {
         switch (state) {
             case ATTACK:
                 if (move != null) {
-                    if (attackPhase() == PHASE_ACTIVE) {
+                    // 판정 구간에는 앞으로 전진합니다(lunge).
+                    // 단, 이미 상대를 맞혔다면 멈춥니다 — 그래야 돌진 공격이
+                    // 상대를 뚫고 지나가지 않고 맞은 자리에서 멈춰 섭니다.
+                    if (attackPhase() == PHASE_ACTIVE && hitsDone == 0) {
                         vx = facing * move.lunge;
                     } else {
                         vx = decay(vx, dt, 10f);
