@@ -39,10 +39,9 @@ public class GameEngine {
     public static final int SCENE_TITLE = 0;
     public static final int SCENE_HOWTO = 1;
     public static final int SCENE_STORY = 2;
-    public static final int SCENE_SELECT = 3;
-    public static final int SCENE_BATTLE = 4;
-    public static final int SCENE_RESULT = 5;
-    public static final int SCENE_FINALE = 6;
+    public static final int SCENE_BATTLE = 3;
+    public static final int SCENE_RESULT = 4;
+    public static final int SCENE_FINALE = 5;
 
     private final Assets assets;
     private final SoundManager sound;
@@ -55,7 +54,6 @@ public class GameEngine {
 
     private int flowStep = 0;
     private int stageIndex = 0;
-    private int charIndex = 0;
     private int diffIndex = 1;      // 기본 '보통'
 
     private boolean aiDebug = false;
@@ -111,23 +109,31 @@ public class GameEngine {
         }
     }
 
-    /** 다음 장면으로 넘어갑니다. 게임 전체 순서가 여기 한곳에 모여 있습니다. */
+    /**
+     * 다음 장면으로 넘어갑니다. 게임 전체 순서가 여기 한곳에 모여 있습니다.
+     *
+     * 주인공은 플레이어가 고르지 않고 스토리가 정합니다.
+     * 1~3장은 아킬레우스, 아킬레우스가 쓰러지는 4장 이후로는 오디세우스입니다.
+     * (각 전투의 주인공은 GameData.STAGES[i].hero 에 적혀 있습니다)
+     */
     private void advanceFlow() {
         flowStep++;
         switch (flowStep) {
             case 1: showStory(StoryData.PROLOGUE); break;
-            case 2: setScene(SCENE_SELECT); break;
 
-            case 3: showStory(StoryData.CH_WAR); break;
-            case 4: startBattle(0); break;
+            case 2: showStory(StoryData.CH_WAR); break;
+            case 3: startBattle(0); break;          // 아킬레우스 vs 트로이 병사
 
-            case 5: showStory(StoryData.CH_WALL); break;
-            case 6: startBattle(1); break;
+            case 4: showStory(StoryData.CH_WALL); break;
+            case 5: startBattle(1); break;          // 아킬레우스 vs 트로이 정예병
 
-            case 7: showStory(StoryData.CH_HEROES); break;
-            case 8: startBattle(2); break;
+            case 6: showStory(StoryData.CH_HEROES); break;
+            case 7: startBattle(2); break;          // 아킬레우스 vs 헥토르 (보스)
 
-            case 9: showStory(StoryData.CH_FALL); break;
+            // 아킬레우스가 파리스의 화살에 쓰러지고 오디세우스로 교체
+            case 8: showStory(StoryData.CH_ACHILLES_FALL); break;
+            case 9: startBattle(3); break;          // 오디세우스 vs 왕궁 수비대
+
             case 10: showStory(StoryData.CH_RETURN); break;
             case 11: setScene(SCENE_FINALE); break;
 
@@ -147,11 +153,15 @@ public class GameEngine {
         if (stageIndex < 0) stageIndex = 0;
         if (stageIndex >= GameData.STAGES.length) stageIndex = GameData.STAGES.length - 1;
 
-        String tip = StoryData.BATTLE_TIP[tipIndex % StoryData.BATTLE_TIP.length];
+        GameData.StageDef stage = GameData.STAGES[stageIndex];
+        // 활을 쓰는 주인공(오디세우스)은 조작 요령이 다르므로 안내 문구도 다릅니다.
+        String[] tips = stage.army ? StoryData.BATTLE_TIP_ARMY
+                : (stage.hero.light != null && stage.hero.light.ranged)
+                ? StoryData.BATTLE_TIP_RANGED : StoryData.BATTLE_TIP;
+        String tip = tips[tipIndex % tips.length];
         tipIndex++;
 
-        world.start(GameData.PLAYABLE[charIndex], GameData.STAGES[stageIndex],
-                GameData.DIFFICULTIES[diffIndex], assets, sound, tip);
+        world.start(stage.hero, stage, GameData.DIFFICULTIES[diffIndex], assets, sound, tip);
         setScene(SCENE_BATTLE);
     }
 
@@ -172,7 +182,6 @@ public class GameEngine {
             case SCENE_TITLE: updateTitle(); break;
             case SCENE_HOWTO: updateHowTo(); break;
             case SCENE_STORY: updateStory(dt); break;
-            case SCENE_SELECT: updateSelect(); break;
             case SCENE_BATTLE: updateBattle(dt); break;
             case SCENE_RESULT: updateResult(); break;
             case SCENE_FINALE: updateFinale(); break;
@@ -181,6 +190,17 @@ public class GameEngine {
     }
 
     private void updateTitle() {
+        // 난이도 — 캐릭터 선택 화면을 없앴으므로 타이틀에서 고릅니다.
+        // (발표 때 AI 반응 속도 차이를 보여 주는 데 쓰입니다)
+        for (int i = 0; i < Screens.TITLE_DIFF.length
+                && i < GameData.DIFFICULTIES.length; i++) {
+            float[] r = Screens.TITLE_DIFF[i];
+            if (input.consumeTapIn(r[0], r[1], r[2], r[3])) {
+                diffIndex = i;
+                sound.play("sfx_select");
+                return;
+            }
+        }
         if (input.consumeTapIn(Screens.TITLE_START[0], Screens.TITLE_START[1],
                 Screens.TITLE_START[2], Screens.TITLE_START[3])) {
             sound.play("sfx_select");
@@ -226,35 +246,6 @@ public class GameEngine {
         if (storyShown < story.lines.length && storyLineTime >= STORY_AUTO_DELAY) {
             storyShown++;
             storyLineTime = 0f;
-        }
-    }
-
-    private void updateSelect() {
-        if (input.consumeTapIn(Screens.SELECT_CHAR_A[0], Screens.SELECT_CHAR_A[1],
-                Screens.SELECT_CHAR_A[2], Screens.SELECT_CHAR_A[3])) {
-            charIndex = 0;
-            sound.play("sfx_select");
-            return;
-        }
-        if (input.consumeTapIn(Screens.SELECT_CHAR_B[0], Screens.SELECT_CHAR_B[1],
-                Screens.SELECT_CHAR_B[2], Screens.SELECT_CHAR_B[3])) {
-            charIndex = 1;
-            sound.play("sfx_select");
-            return;
-        }
-        for (int i = 0; i < Screens.SELECT_DIFF.length
-                && i < GameData.DIFFICULTIES.length; i++) {
-            float[] r = Screens.SELECT_DIFF[i];
-            if (input.consumeTapIn(r[0], r[1], r[2], r[3])) {
-                diffIndex = i;
-                sound.play("sfx_select");
-                return;
-            }
-        }
-        if (input.consumeTapIn(Screens.SELECT_START[0], Screens.SELECT_START[1],
-                Screens.SELECT_START[2], Screens.SELECT_START[3])) {
-            sound.play("sfx_select");
-            advanceFlow();
         }
     }
 
@@ -329,17 +320,14 @@ public class GameEngine {
     public void render(Canvas c) {
         switch (scene) {
             case SCENE_TITLE:
-                Screens.drawTitle(c, d, assets, sceneTime);
+                Screens.drawTitle(c, d, sceneTime, diffIndex);
                 break;
             case SCENE_HOWTO:
-                Screens.drawTitle(c, d, assets, sceneTime);
+                Screens.drawTitle(c, d, sceneTime, diffIndex);
                 Screens.drawHowTo(c, d);
                 break;
             case SCENE_STORY:
-                Screens.drawStory(c, d, story, storyShown, storyLineTime, sceneTime);
-                break;
-            case SCENE_SELECT:
-                Screens.drawSelect(c, d, assets, charIndex, diffIndex, sceneTime);
+                Screens.drawStory(c, d, assets, story, storyShown, storyLineTime, sceneTime);
                 break;
             case SCENE_BATTLE:
                 BattleRenderer.draw(c, d, world, input, aiDebug, paused);

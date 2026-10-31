@@ -20,12 +20,23 @@ public final class StoryData {
         public final String[] lines;
         /** 배경 종류 — Backdrop 참고 (0 해안 / 1 성벽 / 2 야간 / 3 신전 / 4 바다) */
         public final int backdrop;
+        /**
+         * 이 장에서 주인공이 바뀐다면 그 캐릭터. 아니면 null.
+         * 값이 있으면 컷신 끝에 "플레이어 캐릭터 변경" 안내가 함께 나옵니다.
+         */
+        public final GameData.CharacterDef newHero;
 
         public Chapter(String tag, String title, String[] lines, int backdrop) {
+            this(tag, title, lines, backdrop, null);
+        }
+
+        public Chapter(String tag, String title, String[] lines, int backdrop,
+                       GameData.CharacterDef newHero) {
             this.tag = tag;
             this.title = title;
             this.lines = lines;
             this.backdrop = backdrop;
+            this.newHero = newHero;
         }
     }
 
@@ -50,9 +61,8 @@ public final class StoryData {
                     "파리스는 가장 아름다운 여인을 약속한 아프로디테를 택했다.",
                     "그 여인은 스파르타의 왕비 헬레네였다.",
                     "헬레네가 트로이로 떠나자 그리스의 왕들이 군대를 모았다.",
-                    "아킬레우스와 이타카의 왕 오디세우스도 함대에 올랐다.",
-                    "그리고 그리스군의 배가 트로이 해안에 닿는다."
-            }, 0);
+                    "그리스 최강의 전사 아킬레우스가 가장 먼저 해안에 내려선다."
+            }, 0, GameData.ACHILLES);
 
     /** 2장 — 끝나지 않는 전쟁, 이후 두 번째 전투 */
     public static final Chapter CH_WALL = new Chapter(
@@ -74,16 +84,21 @@ public final class StoryData {
                     "서로 다른 이유를 가진 두 영웅의 결투가 시작된다."
             }, 2);
 
-    /** 4장 — 아킬레우스의 죽음과 목마, 트로이 함락 */
-    public static final Chapter CH_FALL = new Chapter(
-            "CHAPTER 4", "트로이의 함락",
+    /**
+     * 4장 — 아킬레우스의 죽음, 그리고 주인공 교체.
+     * 여기서 플레이어 캐릭터가 아킬레우스에서 오디세우스로 바뀝니다.
+     */
+    public static final Chapter CH_ACHILLES_FALL = new Chapter(
+            "CHAPTER 4", "아킬레우스의 최후",
             new String[]{
-                    "헥토르가 쓰러진 뒤에도 전쟁은 계속되었다.",
-                    "파리스가 쏜 화살이 아킬레우스의 약점을 꿰뚫는다.",
-                    "힘으로는 성벽을 넘을 수 없다고 판단한 오디세우스는",
-                    "거대한 목마를 남기고 철수하는 척하는 계책을 세웠다.",
-                    "밤이 되자 목마 안의 병사들이 성문을 열었고, 트로이는 불길에 휩싸였다."
-            }, 2);
+                    "헥토르가 쓰러진 뒤에도 전쟁은 끝나지 않았다.",
+                    "성벽 위에서 파리스가 활시위를 당겼다.",
+                    "화살은 아킬레우스의 단 하나뿐인 약점, 발뒤꿈치를 꿰뚫었다.",
+                    "그리스 최강의 전사가 트로이의 흙 위에 쓰러진다.",
+                    "힘으로는 이 성벽을 넘을 수 없다 — 이타카의 왕 오디세우스가 앞으로 나선다.",
+                    "그는 거대한 목마를 남기고 철수하는 척하는 계책을 세웠다.",
+                    "그리고 밤이 되자, 목마 안의 병사들이 성문을 열었다."
+            }, 2, GameData.ODYSSEUS);
 
     /** 5장 — 귀향의 시작 (영화 《오디세이》로 이어지는 부분) */
     public static final Chapter CH_RETURN = new Chapter(
@@ -103,11 +118,27 @@ public final class StoryData {
             "하지만 오디세우스의 이야기는 이제 시작이다."
     };
 
-    /** 전투 시작 직전에 뜨는 짧은 안내 */
+    /** 전투 시작 직전에 뜨는 짧은 안내 (근접 캐릭터용) */
     public static final String[] BATTLE_TIP = {
-            "탭 = 공격 · 길게 누르기 = 강공격",
+            "탭 = 공격 · 연타하면 3타째에 강공격",
             "방어 버튼을 누르고 있으면 피해가 줄어듭니다",
             "회피 중에는 잠깐 무적이 됩니다",
             "분노가 가득 차면 필살기를 쓸 수 있습니다"
+    };
+
+    /** 군대 전투(다대다)에서 뜨는 안내 */
+    public static final String[] BATTLE_TIP_ARMY = {
+            "적 대장을 먼저 쓰러뜨리면 승리 — 내가 쓰러져도 패배입니다",
+            "돌격군(검·방패)은 앞에서 싸우고, 궁수는 뒤에서 화살을 쏩니다",
+            "궁수의 화살이 날아오면 방어하거나 회피하세요",
+            "병사를 정리해 대장을 고립시키는 것도 방법입니다"
+    };
+
+    /** 오디세우스(활/검) 전투에서 뜨는 안내 */
+    public static final String[] BATTLE_TIP_RANGED = {
+            "오디세우스는 멀면 활, 붙으면 검으로 자동 전환됩니다",
+            "공격 버튼 아래에 지금 나갈 무기가 표시됩니다",
+            "거리를 벌려 화살을, 붙었을 땐 검으로 받아치세요",
+            "분노가 가득 차면 연속 사격을 쓸 수 있습니다"
     };
 }

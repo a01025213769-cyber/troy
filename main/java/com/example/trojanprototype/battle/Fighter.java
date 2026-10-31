@@ -1,10 +1,11 @@
 package com.example.trojanprototype.battle;
 
-import android.graphics.Bitmap;
 import android.graphics.RectF;
 
+import com.example.trojanprototype.ai.EnemyBrain;
 import com.example.trojanprototype.data.GameData;
 import com.example.trojanprototype.ui.Theme;
+import com.example.trojanprototype.util.SpriteSet;
 
 /**
  * 전투에 등장하는 캐릭터 한 명 (플레이어 / 적 공통).
@@ -52,12 +53,31 @@ public class Fighter {
     public static final int RESULT_HIT = 2;
     public static final int RESULT_GUARD_BREAK = 3;
 
+    // 군대 전투에서의 역할
+    public static final int ROLE_HERO = 0;      // 플레이어(그리스군 대장)
+    public static final int ROLE_COMMANDER = 1; // 트로이군 대장(보스 개체)
+    public static final int ROLE_ASSAULT = 2;   // 돌격군 (검과 방패)
+    public static final int ROLE_ARCHER = 3;    // 궁수 (활)
+
+    // ------------------------------------------------ 군대 정보
+    /** 0 = 그리스군, 1 = 트로이군 */
+    public int team = 0;
+    public int role = ROLE_HERO;
+    /** 대장이면 true — 대장이 쓰러지면 그 군대가 패배합니다. */
+    public boolean commander = false;
+    /** 앞뒤 줄(세로 오프셋, px). 여러 명이 한 줄로 겹치지 않게 합니다. */
+    public float lane = 0f;
+    /** 이 병사를 조종하는 AI (플레이어는 null) */
+    public EnemyBrain ai = null;
+    /** 쓰러진 뒤 흐른 시간 (사라지는 연출용) */
+    public float downTime = 0f;
+
     // ------------------------------------------------ 캐릭터 정보
     public String name = "";
     public String title = "";
-    public Bitmap sprite;            // 한 장짜리 대기 그림 (UI · 프레임이 없을 때의 대체용)
-    public Bitmap[] frames;          // 프레임 애니메이션 6장. 없으면 null (Assets.frames 참고)
-    /** 화면에 그릴 "서 있는 키"(px). 프레임 칸 크기가 아니라 캐릭터 본체 기준입니다. */
+    /** 동작 프레임 묶음 (f0 대기 ~ f5 방어) */
+    public SpriteSet sprites = new SpriteSet();
+    /** 화면에 그릴 "몸" 높이 */
     public float spriteHeight = 150f;
     public int accent = 0xFFE0A24C;
 
@@ -72,6 +92,14 @@ public class Fighter {
     public GameData.Move lightMove;
     public GameData.Move heavyMove;
     public GameData.Move ultimateMove;
+
+    /** 적이 붙었을 때 쓰는 근접 기술 (오디세우스의 검). 없으면 null. */
+    public GameData.Move meleeLightMove;
+    public GameData.Move meleeHeavyMove;
+    /** 이 거리 안이면 근접 기술로 바꿉니다. */
+    public float meleeRange = 0f;
+    /** 마지막으로 고른 공격이 근접 전환이었는지 (HUD 표시용) */
+    public boolean usingMelee = false;
 
     // ------------------------------------------------ 현재 상태
     public float x = 300f;
@@ -128,6 +156,7 @@ public class Fighter {
         comboTaken = 0;
         sinceLastHurt = 99f;
         brokeOut = false;
+        downTime = 0f;
     }
 
     // ==================================================================
@@ -140,8 +169,17 @@ public class Fighter {
     /** 새 행동(공격/회피/이동)을 시작할 수 있는 상태인가 */
     public boolean canAct() {
         if (state == IDLE || state == WALK || state == GUARD) return true;
-        // 공격 후딜 중에는 연속 공격으로 이어 갈 수 있습니다.
-        if (state == ATTACK && attackPhase() == PHASE_RECOVER) return true;
+        if (state == ATTACK && attackPhase() == PHASE_RECOVER) {
+            if (move == null) return true;
+            // 활은 후딜을 취소하고 이어 쏠 수 없습니다.
+            // 허용하면 화살을 난사해 상대를 영구 경직시킬 수 있습니다.
+            if (move.ranged) return false;
+            // 근접 공격은 후딜 중에 연속 공격으로 이어 갈 수 있지만,
+            // 후딜 절반은 지나야 합니다. 바로 이어지게 하면 공격 간격이
+            // 피격 경직보다 짧아져 상대가 영영 반격하지 못합니다.
+            float intoRecover = stateTime - move.windup - move.active;
+            return intoRecover >= move.recover * 0.5f;
+        }
         return false;
     }
 
@@ -177,12 +215,28 @@ public class Fighter {
     // ==================================================================
     //  행동 시작
     // ==================================================================
-    /** 공격 버튼을 눌렀을 때. 3타째는 자동으로 강공격이 나갑니다. */
-    public boolean tryAttack() {
+    /**
+     * 공격 버튼을 눌렀을 때. 3타째는 자동으로 강공격이 나갑니다.
+     *
+     * 근접 기술이 있는 캐릭터(오디세우스)는 상대와의 거리를 보고
+     * 멀면 활, 가까우면 검으로 자동으로 바꿔 씁니다.
+     *
+     * @param distanceToOpponent 두 캐릭터 중심 사이의 거리(px)
+     */
+    public boolean tryAttack(float distanceToOpponent) {
         if (!canAct()) return false;
 
+        boolean melee = (meleeLightMove != null) && (distanceToOpponent <= meleeRange);
         int step = (chainTimer > 0f) ? chainStep : 0;
-        GameData.Move next = (step >= 2) ? heavyMove : lightMove;
+
+        GameData.Move next;
+        if (melee) {
+            next = (step >= 2 && meleeHeavyMove != null) ? meleeHeavyMove : meleeLightMove;
+        } else {
+            next = (step >= 2) ? heavyMove : lightMove;
+        }
+
+        usingMelee = melee;
         startMove(next, false);
         chainStep = (step >= 2) ? 0 : step + 1;
         chainTimer = Theme.CHAIN_WINDOW;
@@ -312,8 +366,10 @@ public class Fighter {
             comboTaken = 0;
             brokeOut = true;
             invincible = GameData.COMBO_BREAK_INVINCIBLE;
-            vx = awayDir * (m.knockback + 320f);
-            hurtDuration = GameData.HURT_TIME * 0.6f;
+            // 살짝만 밀어냅니다. 크게 밀어내면 거리가 초기화되어
+            // 때리던 쪽이 다시 유리해지고, 맞던 쪽은 반격 기회를 얻지 못합니다.
+            vx = awayDir * (m.knockback * 0.5f + 90f);
+            hurtDuration = GameData.HURT_TIME * 0.5f;
         }
         return (blocking && m.guardBreak) ? RESULT_GUARD_BREAK : RESULT_HIT;
     }
@@ -339,6 +395,7 @@ public class Fighter {
     public void update(float dt) {
         animTime += dt;
         stateTime += dt;
+        if (state == DOWN) downTime += dt;
 
         sinceLastHurt += dt;
         if (sinceLastHurt > GameData.COMBO_RESET_TIME) comboTaken = 0;
@@ -353,7 +410,10 @@ public class Fighter {
         switch (state) {
             case ATTACK:
                 if (move != null) {
-                    if (attackPhase() == PHASE_ACTIVE) {
+                    // 판정 구간에는 앞으로 전진합니다(lunge).
+                    // 단, 이미 상대를 맞혔다면 멈춥니다 — 그래야 돌진 공격이
+                    // 상대를 뚫고 지나가지 않고 맞은 자리에서 멈춰 섭니다.
+                    if (attackPhase() == PHASE_ACTIVE && hitsDone == 0) {
                         vx = facing * move.lunge;
                     } else {
                         vx = decay(vx, dt, 10f);
@@ -432,7 +492,7 @@ public class Fighter {
     // ==================================================================
     public RectF bodyBox() {
         float half = GameData.BODY_W * 0.5f;
-        tmpBody.set(x - half, Theme.GROUND - GameData.BODY_H, x + half, Theme.GROUND);
+        tmpBody.set(x - half, Theme.GROUND + lane - GameData.BODY_H, x + half, Theme.GROUND + lane);
         return tmpBody;
     }
 
@@ -443,7 +503,7 @@ public class Fighter {
         float front = x + facing * (GameData.BODY_W * 0.5f);
         float l = (facing > 0) ? front : front - move.reach;
         float r = (facing > 0) ? front + move.reach : front;
-        float top = Theme.GROUND - move.boxTop;
+        float top = Theme.GROUND + lane - move.boxTop;
         tmpAttack.set(l, top, r, top + move.boxHeight);
         return tmpAttack;
     }
@@ -451,6 +511,9 @@ public class Fighter {
     /** 이 캐릭터의 공격이 닿는 최대 거리 (AI 판단용) */
     public float reachOf(GameData.Move m) {
         if (m == null) return 0f;
+        // 활은 화면 끝까지 날아가지만, 그대로 쓰면 적이 멀리서도 계속 방어만 합니다.
+        // AI 판단에는 "위협을 느끼는 거리"로 제한한 값을 씁니다.
+        if (m.ranged) return GameData.RANGED_AI_THREAT_RANGE;
         return GameData.BODY_W * 0.5f + m.reach;
     }
 

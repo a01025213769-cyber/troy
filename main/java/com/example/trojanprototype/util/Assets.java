@@ -21,6 +21,7 @@ public class Assets {
     private final Resources res;
     private final String pkg;
     private final HashMap<String, Bitmap> cache = new HashMap<String, Bitmap>();
+    private final HashMap<String, SpriteSet> sets = new HashMap<String, SpriteSet>();
     private final BitmapFactory.Options options = new BitmapFactory.Options();
 
     public Assets(Context ctx) {
@@ -47,29 +48,97 @@ public class Assets {
         return bmp;
     }
 
-    /** 한 캐릭터의 프레임 수 (대기 · 걷기A · 걷기B · 달리기 · 공격 · 방어/자세) */
-    public static final int FRAME_COUNT = 6;
+    /**
+     * 동작 프레임 묶음을 가져옵니다.
+     * "achilles_sprite" 를 넘기면 achilles_sprite_f0 ~ _f5 를 찾고,
+     * 하나도 없으면 achilles_sprite 한 장만 쓰는 묶음을 돌려줍니다.
+     */
+    public SpriteSet spriteSet(String name) {
+        if (name == null) return new SpriteSet();
+        SpriteSet cached = sets.get(name);
+        if (cached != null) return cached;
 
-    private final HashMap<String, Bitmap[]> frameCache = new HashMap<String, Bitmap[]>();
+        SpriteSet set = new SpriteSet();
+        set.base = sprite(name);
+
+        for (int i = 0; i < SpriteSet.FRAME_COUNT; i++) {
+            Bitmap f = sprite(name + "_f" + i);
+            set.frames[i] = f;
+            if (f != null) set.animated = true;
+        }
+
+        // 기준이 될 프레임: 대기(f0) 우선, 없으면 기본 그림
+        Bitmap ref = set.frames[SpriteSet.F_IDLE_A];
+        if (ref == null) ref = set.base;
+        if (ref == null) ref = set.frame(0);
+
+        if (ref != null) {
+            set.canvasW = ref.getWidth();
+            set.canvasH = ref.getHeight();
+            measure(ref, set);
+        }
+
+        sets.put(name, set);
+        return set;
+    }
 
     /**
-     * 프레임 애니메이션용 그림 묶음을 가져옵니다.
-     * 파일 이름은 "<spriteName>_f0" ~ "<spriteName>_f5" 입니다. (예: achilles_sprite_f4)
-     * 모든 프레임은 같은 크기의 칸이고, 발 위치와 몸통 중심이 같아서 그대로 겹쳐 그리면 됩니다.
-     * 프레임 파일이 하나라도 없으면 null 을 돌려주고, 그러면 한 장짜리 sprite() 로 그립니다.
+     * 기준 프레임에서 "몸이 실제로 차지하는 영역"을 재어
+     * 몸 높이와 몸 중심 가로 위치를 구합니다.
+     *
+     * 캐릭터마다 캔버스 여백이 다르기 때문에 이 값을 미리 재어 두어야
+     * 모든 캐릭터의 키가 화면에서 비슷하게 맞습니다.
+     * (그림이 바뀌어도 코드를 고칠 필요가 없도록 직접 계산합니다)
      */
-    public Bitmap[] frames(String name) {
-        if (name == null) return null;
-        if (frameCache.containsKey(name)) return frameCache.get(name);
-        Bitmap[] out = new Bitmap[FRAME_COUNT];
-        boolean ok = true;
-        for (int i = 0; i < FRAME_COUNT; i++) {
-            out[i] = sprite(name + "_f" + i);
-            if (out[i] == null) ok = false;
+    private void measure(Bitmap ref, SpriteSet set) {
+        int w = ref.getWidth();
+        int h = ref.getHeight();
+        set.anchorX = w * 0.5f;
+        set.bodyHeight = h;
+        if (w <= 0 || h <= 0) return;
+
+        try {
+            int[] px = new int[w * h];
+            ref.getPixels(px, 0, w, 0, 0, w, h);
+
+            int minX = w, maxX = -1, minY = h, maxY = -1;
+            for (int y = 0; y < h; y++) {
+                int row = y * w;
+                for (int x = 0; x < w; x++) {
+                    int alpha = (px[row + x] >>> 24);
+                    if (alpha > 16) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            if (maxX < minX || maxY < minY) return;
+
+            set.bodyHeight = (maxY - minY + 1);
+
+            // 몸 중심은 '발' 위치로 잡습니다.
+            // 전체 내용의 가운데를 쓰면 손에 든 창·검이 옆으로 튀어나온 만큼
+            // 중심이 밀려서, 캐릭터가 서 있는 위치가 어긋나 보입니다.
+            int footTop = maxY - (int) (set.bodyHeight * 0.18f);
+            if (footTop < minY) footTop = minY;
+            int fMinX = w, fMaxX = -1;
+            for (int y = footTop; y <= maxY; y++) {
+                int row = y * w;
+                for (int x = 0; x < w; x++) {
+                    if ((px[row + x] >>> 24) > 16) {
+                        if (x < fMinX) fMinX = x;
+                        if (x > fMaxX) fMaxX = x;
+                    }
+                }
+            }
+            set.anchorX = (fMaxX >= fMinX)
+                    ? (fMinX + fMaxX + 1) * 0.5f
+                    : (minX + maxX + 1) * 0.5f;
+        } catch (Throwable ignored) {
+            // 측정에 실패하면 캔버스 기준값을 그대로 씁니다.
         }
-        if (!ok) out = null;
-        frameCache.put(name, out);
-        return out;
     }
 
     /** raw 리소스(mp3, wav) 의 id 를 이름으로 찾습니다. 없으면 0. */
@@ -84,6 +153,6 @@ public class Assets {
 
     public void clear() {
         cache.clear();
-        frameCache.clear();
+        sets.clear();
     }
 }

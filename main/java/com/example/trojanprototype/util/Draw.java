@@ -5,8 +5,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 
@@ -26,8 +24,6 @@ public class Draw {
 
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint bmpPaint = new Paint();
-    private PorterDuffColorFilter tintFilter;
-    private int tintColor;
     private final RectF r = new RectF();
     private final Path path = new Path();
 
@@ -148,23 +144,6 @@ public class Draw {
         bmpPaint.setAlpha(alpha);
         r.set(l, t, rt, bt);
         c.drawBitmap(b, null, r, bmpPaint);
-    }
-
-    /**
-     * 스프라이트의 불투명한 부분만 한 가지 색으로 덮어 그립니다. (피격 시 하얗게 번쩍이는 용도)
-     * color 의 알파가 덮는 세기입니다. 투명한 부분은 그대로 투명합니다.
-     */
-    public void bitmapTinted(Canvas c, Bitmap b, float l, float t, float rt, float bt, int color) {
-        if (b == null) return;
-        if (tintFilter == null || tintColor != (color | 0xFF000000)) {
-            tintColor = color | 0xFF000000;
-            tintFilter = new PorterDuffColorFilter(tintColor, PorterDuff.Mode.SRC_ATOP);
-        }
-        bmpPaint.setColorFilter(tintFilter);
-        bmpPaint.setAlpha(Color.alpha(color));
-        r.set(l, t, rt, bt);
-        c.drawBitmap(b, null, r, bmpPaint);
-        bmpPaint.setColorFilter(null);
     }
 
     // ---------------------------------------------------------- 색 도우미
