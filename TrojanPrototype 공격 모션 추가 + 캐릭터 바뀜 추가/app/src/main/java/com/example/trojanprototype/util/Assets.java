@@ -114,10 +114,28 @@ public class Assets {
                     }
                 }
             }
-            if (maxX >= minX && maxY >= minY) {
-                set.anchorX = (minX + maxX + 1) * 0.5f;
-                set.bodyHeight = (maxY - minY + 1);
+            if (maxX < minX || maxY < minY) return;
+
+            set.bodyHeight = (maxY - minY + 1);
+
+            // 몸 중심은 '발' 위치로 잡습니다.
+            // 전체 내용의 가운데를 쓰면 손에 든 창·검이 옆으로 튀어나온 만큼
+            // 중심이 밀려서, 캐릭터가 서 있는 위치가 어긋나 보입니다.
+            int footTop = maxY - (int) (set.bodyHeight * 0.18f);
+            if (footTop < minY) footTop = minY;
+            int fMinX = w, fMaxX = -1;
+            for (int y = footTop; y <= maxY; y++) {
+                int row = y * w;
+                for (int x = 0; x < w; x++) {
+                    if ((px[row + x] >>> 24) > 16) {
+                        if (x < fMinX) fMinX = x;
+                        if (x > fMaxX) fMaxX = x;
+                    }
+                }
             }
+            set.anchorX = (fMaxX >= fMinX)
+                    ? (fMinX + fMaxX + 1) * 0.5f
+                    : (minX + maxX + 1) * 0.5f;
         } catch (Throwable ignored) {
             // 측정에 실패하면 캔버스 기준값을 그대로 씁니다.
         }

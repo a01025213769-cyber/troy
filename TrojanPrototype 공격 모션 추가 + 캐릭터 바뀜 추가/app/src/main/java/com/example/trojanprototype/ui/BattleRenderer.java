@@ -95,13 +95,7 @@ public final class BattleRenderer {
 
             case Fighter.ATTACK:
                 if (f.move == null) return SpriteSet.F_IDLE_A;
-                // 기술마다 보여 줄 프레임이 다릅니다.
-                // (창·검 = f4 / 오디세우스의 검 = f2)
-                // 활은 "당기는 모습"이 곧 공격 그림이라 선딜부터 보여 줍니다.
-                if (f.move.ranged) return f.move.attackFrame;
-                // 근접 공격은 선딜에 준비 자세 → 판정부터 내리치는 그림
-                return (f.attackPhase() == Fighter.PHASE_WINDUP)
-                        ? SpriteSet.F_IDLE_B : f.move.attackFrame;
+                return attackFrame(f, f.move);
 
             case Fighter.GUARD:
                 return SpriteSet.F_GUARD;
@@ -121,6 +115,38 @@ public final class BattleRenderer {
             default: // IDLE
                 return (f.animTime % 1.6f < 0.8f) ? SpriteSet.F_IDLE_A : SpriteSet.F_IDLE_B;
         }
+    }
+
+    /**
+     * 공격 중 어느 프레임을 보여 줄지 고릅니다.
+     *
+     *   선딜  → attackFrames[0]      (무기를 치켜드는 동작)
+     *   판정  → attackFrames[1]      (실제로 때리는 순간)
+     *   후딜  → attackFrames[2...]   (휘두른 뒤 마무리를 차례로)
+     *
+     * 프레임을 한 장만 지정한 기술은 공격 내내 그 그림만 나옵니다.
+     * 활은 "시위를 당기는 그림"이 곧 공격 동작이라 선딜부터 같은 그림을 씁니다.
+     */
+    private static int attackFrame(Fighter f, GameData.Move m) {
+        int[] seq = m.attackFrames;
+        int n = seq.length;
+        if (n == 1) {
+            // 한 장짜리 기술: 근접은 선딜에 준비 자세를 한 번 거칩니다.
+            if (!m.ranged && f.attackPhase() == Fighter.PHASE_WINDUP) {
+                return SpriteSet.F_IDLE_B;
+            }
+            return seq[0];
+        }
+
+        float t = f.stateTime;
+        if (t < m.windup) return seq[0];
+        if (t < m.windup + m.active) return seq[Math.min(1, n - 1)];
+
+        int rest = n - 2;
+        if (rest <= 0) return seq[n - 1];
+        float r = (t - m.windup - m.active) / Math.max(0.001f, m.recover);
+        int step = (int) (Draw.clamp(r, 0f, 0.999f) * rest);
+        return seq[2 + Math.min(rest - 1, step)];
     }
 
     private static void drawFighter(Canvas c, Draw d, Fighter f) {

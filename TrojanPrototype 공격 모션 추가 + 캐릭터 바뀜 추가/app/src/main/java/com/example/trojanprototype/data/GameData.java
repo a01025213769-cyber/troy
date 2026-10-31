@@ -19,6 +19,9 @@ public final class GameData {
     //  기술(Move) 한 개의 정의
     // ============================================================
     public static final class Move {
+        /** 프레임을 따로 지정하지 않은 기술이 쓰는 기본값 (_f4 한 장) */
+        private static final int[] DEFAULT_FRAMES = {4};
+
         /** 화면에 뜨는 기술 이름 */
         public final String name;
         /** 선딜 — 버튼을 누르고 공격이 나가기까지 걸리는 시간(초) */
@@ -50,18 +53,24 @@ public final class GameData {
         /** 화살 속도(px/초). ranged 일 때만 사용 */
         public final float arrowSpeed;
         /**
-         * 이 기술을 쓸 때 보여 줄 스프라이트 프레임 번호.
-         * 기본값 4 = 공격 프레임(_f4). 오디세우스의 검처럼 다른 그림을
-         * 써야 하는 기술은 2(_f2, 검을 앞으로 뻗은 걸음) 같은 값을 넣습니다.
+         * 이 기술을 쓸 때 보여 줄 스프라이트 프레임 번호들.
+         *
+         *   [0]     선딜에 보여 줄 그림 (치켜드는 동작)
+         *   [1]     판정 구간 그림 (실제로 베는 순간)
+         *   [2...]  후딜에 차례로 보여 줄 그림 (휘두른 뒤 마무리)
+         *
+         * 한 장만 넣으면 공격 내내 그 그림만 나옵니다.
+         * 기본값은 {4} = 공격 프레임(_f4) 한 장.
          */
-        public final int attackFrame;
+        public final int[] attackFrames;
 
         public Move(String name, float windup, float active, float recover,
                     float reach, float boxHeight, float boxTop,
                     float damage, float knockback, float lunge,
                     int hits, float rageGain, boolean guardBreak) {
             this(name, windup, active, recover, reach, boxHeight, boxTop,
-                    damage, knockback, lunge, hits, rageGain, guardBreak, false, 0f, 4);
+                    damage, knockback, lunge, hits, rageGain, guardBreak, false, 0f,
+                    DEFAULT_FRAMES);
         }
 
         public Move(String name, float windup, float active, float recover,
@@ -71,14 +80,16 @@ public final class GameData {
                     boolean ranged, float arrowSpeed) {
             this(name, windup, active, recover, reach, boxHeight, boxTop,
                     damage, knockback, lunge, hits, rageGain, guardBreak,
-                    ranged, arrowSpeed, 4);
+                    ranged, arrowSpeed, DEFAULT_FRAMES);
         }
 
         public Move(String name, float windup, float active, float recover,
                     float reach, float boxHeight, float boxTop,
                     float damage, float knockback, float lunge,
                     int hits, float rageGain, boolean guardBreak,
-                    boolean ranged, float arrowSpeed, int attackFrame) {
+                    boolean ranged, float arrowSpeed, int[] attackFrames) {
+            this.attackFrames = (attackFrames == null || attackFrames.length == 0)
+                    ? DEFAULT_FRAMES : attackFrames;
             this.name = name;
             this.windup = windup;
             this.active = active;
@@ -94,7 +105,6 @@ public final class GameData {
             this.guardBreak = guardBreak;
             this.ranged = ranged;
             this.arrowSpeed = arrowSpeed;
-            this.attackFrame = attackFrame;
         }
 
         /** 기술 전체 길이(초) */
@@ -193,10 +203,13 @@ public final class GameData {
                     true, 840f),
             // 적이 붙었을 때 쓰는 검. 활 모션(f4) 대신 검을 든 걸음 프레임(f2)을 보여 줍니다.
             //        이름        선딜   판정   후딜  사거리 높이  위치  피해  넉백  전진 횟수 분노 가드브레이크 원거리 화살속도 프레임
+            // 검 동작은 f6~f11 에 들어 있습니다.
+            //   f6 치켜듦 → f7 찌르기 → f8 내려베기 → f9 마무리
+            //   f10 크게 치켜듦 → f11 돌진 베기 → f8 → f9
             new Move("돌진 베기", 0.10f, 0.14f, 0.24f, 92f, 70f, 116f, 9f, 240f, 1250f, 1, 10f,
-                    false, false, 0f, 2),
+                    false, false, 0f, new int[]{6, 7, 8, 9}),
             new Move("돌진 올려베기", 0.22f, 0.16f, 0.32f, 102f, 86f, 126f, 16f, 360f, 1350f, 1, 14f,
-                    true, false, 0f, 2),
+                    true, false, 0f, new int[]{10, 11, 8, 9}),
             275f   // 이 거리 안으로 들어오면 활 대신 검 (파고들어 벱니다)
     );
 

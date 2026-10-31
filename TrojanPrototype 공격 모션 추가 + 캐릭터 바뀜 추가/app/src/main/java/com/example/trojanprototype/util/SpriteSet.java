@@ -14,6 +14,7 @@ import android.graphics.Bitmap;
  *   f3  달리기 (회피·돌진에도 사용)
  *   f4  공격   ← 무기가 오른쪽으로 길게 뻗은 프레임
  *   f5  방어   ← 방패를 든 프레임
+ *   f6~  (선택) 기술 전용 동작. 검 휘두르기처럼 여러 장이 필요할 때 씁니다.
  *
  * ── 그림을 어디에 맞춰 그리는가 ──────────────────────────
  * 프레임 6장은 모두 같은 크기의 캔버스를 쓰고, 아래 두 가지가 지켜져 있습니다.
@@ -39,7 +40,12 @@ public class SpriteSet {
     public static final int F_RUN = 3;
     public static final int F_ATTACK = 4;
     public static final int F_GUARD = 5;
-    public static final int FRAME_COUNT = 6;
+    /**
+     * 6번부터는 "추가 동작" 칸입니다.
+     * 기술마다 다른 그림이 필요할 때(예: 오디세우스의 검 휘두르기) 여기에 넣고
+     * GameData 의 Move 에서 프레임 번호로 지정합니다.
+     */
+    public static final int FRAME_COUNT = 16;
 
     /** 동작 프레임. 없는 칸은 null 입니다. */
     public final Bitmap[] frames = new Bitmap[FRAME_COUNT];
