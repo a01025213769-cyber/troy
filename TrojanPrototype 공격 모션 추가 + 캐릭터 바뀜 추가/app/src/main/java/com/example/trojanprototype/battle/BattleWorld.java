@@ -129,6 +129,9 @@ public class BattleWorld {
         player.lightMove = ch.light;
         player.heavyMove = ch.heavy;
         player.ultimateMove = ch.ultimate;
+        player.meleeLightMove = ch.meleeLight;
+        player.meleeHeavyMove = ch.meleeHeavy;
+        player.meleeRange = ch.meleeRange;
         player.resetForBattle(260f, 1);
 
         // --- 적 설정
@@ -204,6 +207,11 @@ public class BattleWorld {
                 break;
 
             case PHASE_FIGHT:
+                // 활/검 전환 상태를 매 프레임 갱신합니다.
+                // 공격 버튼에 지금 어떤 무기가 나갈지 표시하는 데 씁니다.
+                player.usingMelee = (player.meleeLightMove != null)
+                        && Math.abs(enemy.x - player.x) <= player.meleeRange;
+
                 handlePlayerInput(input);
                 brain.update(dt, enemy, player);
 
@@ -262,8 +270,10 @@ public class BattleWorld {
                 return;
             }
         }
-        if (pressAttack && player.tryAttack()) {
-            playSfx("sfx_swing");
+        // 활과 검을 자동으로 바꿔 쓰려면 지금 거리를 알아야 합니다.
+        float distance = Math.abs(enemy.x - player.x);
+        if (pressAttack && player.tryAttack(distance)) {
+            playSfx(player.usingMelee ? "sfx_hit" : "sfx_swing");
         }
 
         if (guard) {

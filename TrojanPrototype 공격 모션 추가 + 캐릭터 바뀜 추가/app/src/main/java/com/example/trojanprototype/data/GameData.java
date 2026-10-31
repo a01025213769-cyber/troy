@@ -49,13 +49,19 @@ public final class GameData {
         public final boolean ranged;
         /** 화살 속도(px/초). ranged 일 때만 사용 */
         public final float arrowSpeed;
+        /**
+         * 이 기술을 쓸 때 보여 줄 스프라이트 프레임 번호.
+         * 기본값 4 = 공격 프레임(_f4). 오디세우스의 검처럼 다른 그림을
+         * 써야 하는 기술은 2(_f2, 검을 앞으로 뻗은 걸음) 같은 값을 넣습니다.
+         */
+        public final int attackFrame;
 
         public Move(String name, float windup, float active, float recover,
                     float reach, float boxHeight, float boxTop,
                     float damage, float knockback, float lunge,
                     int hits, float rageGain, boolean guardBreak) {
             this(name, windup, active, recover, reach, boxHeight, boxTop,
-                    damage, knockback, lunge, hits, rageGain, guardBreak, false, 0f);
+                    damage, knockback, lunge, hits, rageGain, guardBreak, false, 0f, 4);
         }
 
         public Move(String name, float windup, float active, float recover,
@@ -63,6 +69,16 @@ public final class GameData {
                     float damage, float knockback, float lunge,
                     int hits, float rageGain, boolean guardBreak,
                     boolean ranged, float arrowSpeed) {
+            this(name, windup, active, recover, reach, boxHeight, boxTop,
+                    damage, knockback, lunge, hits, rageGain, guardBreak,
+                    ranged, arrowSpeed, 4);
+        }
+
+        public Move(String name, float windup, float active, float recover,
+                    float reach, float boxHeight, float boxTop,
+                    float damage, float knockback, float lunge,
+                    int hits, float rageGain, boolean guardBreak,
+                    boolean ranged, float arrowSpeed, int attackFrame) {
             this.name = name;
             this.windup = windup;
             this.active = active;
@@ -78,6 +94,7 @@ public final class GameData {
             this.guardBreak = guardBreak;
             this.ranged = ranged;
             this.arrowSpeed = arrowSpeed;
+            this.attackFrame = attackFrame;
         }
 
         /** 기술 전체 길이(초) */
@@ -104,9 +121,30 @@ public final class GameData {
         public final Move heavy;         // 강공격 (3타째 자동)
         public final Move ultimate;      // 필살기 (분노 100)
 
+        /**
+         * 적이 가까이 붙었을 때 쓰는 근접 기술. 없으면 null.
+         * 오디세우스는 평소엔 활을 쏘다가 적이 meleeRange 안으로 들어오면
+         * 자동으로 검으로 바꿔 싸웁니다.
+         */
+        public final Move meleeLight;
+        public final Move meleeHeavy;
+        /** 이 거리(두 캐릭터 중심 사이, px) 안이면 근접 기술을 씁니다. */
+        public final float meleeRange;
+
         public CharacterDef(String name, String title, String spriteName, int maxHp,
                             float attack, float moveSpeed, float dodgeSpeed, float spriteHeight,
                             int accent, String[] traits, Move light, Move heavy, Move ultimate) {
+            this(name, title, spriteName, maxHp, attack, moveSpeed, dodgeSpeed, spriteHeight,
+                    accent, traits, light, heavy, ultimate, null, null, 0f);
+        }
+
+        public CharacterDef(String name, String title, String spriteName, int maxHp,
+                            float attack, float moveSpeed, float dodgeSpeed, float spriteHeight,
+                            int accent, String[] traits, Move light, Move heavy, Move ultimate,
+                            Move meleeLight, Move meleeHeavy, float meleeRange) {
+            this.meleeLight = meleeLight;
+            this.meleeHeavy = meleeHeavy;
+            this.meleeRange = meleeRange;
             this.name = name;
             this.title = title;
             this.spriteName = spriteName;
@@ -152,7 +190,14 @@ public final class GameData {
             new Move("강궁", 0.30f, 0.06f, 0.42f, 60f, 44f, 106f, 17f, 300f, 0f, 1, 14f, true,
                     true, 920f),
             new Move("연속 사격", 0.24f, 0.50f, 0.36f, 60f, 40f, 104f, 10f, 160f, 0f, 5, 0f, true,
-                    true, 840f)
+                    true, 840f),
+            // 적이 붙었을 때 쓰는 검. 활 모션(f4) 대신 검을 든 걸음 프레임(f2)을 보여 줍니다.
+            //        이름        선딜   판정   후딜  사거리 높이  위치  피해  넉백  전진 횟수 분노 가드브레이크 원거리 화살속도 프레임
+            new Move("단검 베기", 0.10f, 0.09f, 0.20f, 72f, 70f, 116f, 8f, 200f, 160f, 1, 10f,
+                    false, false, 0f, 2),
+            new Move("검 올려베기", 0.22f, 0.11f, 0.30f, 80f, 86f, 126f, 15f, 340f, 220f, 1, 14f,
+                    true, false, 0f, 2),
+            100f   // 이 거리 안으로 들어오면 활 대신 검
     );
 
     /** 소개 화면 등에서 쓰는 목록 (플레이어가 고르는 용도가 아닙니다) */

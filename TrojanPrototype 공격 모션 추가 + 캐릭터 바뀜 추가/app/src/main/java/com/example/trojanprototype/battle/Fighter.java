@@ -73,6 +73,14 @@ public class Fighter {
     public GameData.Move heavyMove;
     public GameData.Move ultimateMove;
 
+    /** 적이 붙었을 때 쓰는 근접 기술 (오디세우스의 검). 없으면 null. */
+    public GameData.Move meleeLightMove;
+    public GameData.Move meleeHeavyMove;
+    /** 이 거리 안이면 근접 기술로 바꿉니다. */
+    public float meleeRange = 0f;
+    /** 마지막으로 고른 공격이 근접 전환이었는지 (HUD 표시용) */
+    public boolean usingMelee = false;
+
     // ------------------------------------------------ 현재 상태
     public float x = 300f;
     public float vx = 0f;
@@ -186,12 +194,28 @@ public class Fighter {
     // ==================================================================
     //  행동 시작
     // ==================================================================
-    /** 공격 버튼을 눌렀을 때. 3타째는 자동으로 강공격이 나갑니다. */
-    public boolean tryAttack() {
+    /**
+     * 공격 버튼을 눌렀을 때. 3타째는 자동으로 강공격이 나갑니다.
+     *
+     * 근접 기술이 있는 캐릭터(오디세우스)는 상대와의 거리를 보고
+     * 멀면 활, 가까우면 검으로 자동으로 바꿔 씁니다.
+     *
+     * @param distanceToOpponent 두 캐릭터 중심 사이의 거리(px)
+     */
+    public boolean tryAttack(float distanceToOpponent) {
         if (!canAct()) return false;
 
+        boolean melee = (meleeLightMove != null) && (distanceToOpponent <= meleeRange);
         int step = (chainTimer > 0f) ? chainStep : 0;
-        GameData.Move next = (step >= 2) ? heavyMove : lightMove;
+
+        GameData.Move next;
+        if (melee) {
+            next = (step >= 2 && meleeHeavyMove != null) ? meleeHeavyMove : meleeLightMove;
+        } else {
+            next = (step >= 2) ? heavyMove : lightMove;
+        }
+
+        usingMelee = melee;
         startMove(next, false);
         chainStep = (step >= 2) ? 0 : step + 1;
         chainTimer = Theme.CHAIN_WINDOW;

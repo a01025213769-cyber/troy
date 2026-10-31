@@ -95,11 +95,13 @@ public final class BattleRenderer {
 
             case Fighter.ATTACK:
                 if (f.move == null) return SpriteSet.F_IDLE_A;
-                // 활은 "당기는 모습"이 곧 공격 프레임이라 선딜부터 보여 줍니다.
-                if (f.move.ranged) return SpriteSet.F_ATTACK;
-                // 근접 공격은 선딜에 준비 자세 → 판정부터 찌르는 그림
+                // 기술마다 보여 줄 프레임이 다릅니다.
+                // (창·검 = f4 / 오디세우스의 검 = f2)
+                // 활은 "당기는 모습"이 곧 공격 그림이라 선딜부터 보여 줍니다.
+                if (f.move.ranged) return f.move.attackFrame;
+                // 근접 공격은 선딜에 준비 자세 → 판정부터 내리치는 그림
                 return (f.attackPhase() == Fighter.PHASE_WINDUP)
-                        ? SpriteSet.F_IDLE_B : SpriteSet.F_ATTACK;
+                        ? SpriteSet.F_IDLE_B : f.move.attackFrame;
 
             case Fighter.GUARD:
                 return SpriteSet.F_GUARD;

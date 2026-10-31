@@ -63,7 +63,15 @@ public final class VirtualPad {
         d.circleStroke(c, Theme.BTN_ATTACK_X, Theme.BTN_ATTACK_Y, Theme.BTN_ATTACK_R, 2.5f,
                 atk ? 0xFFFFD9A0 : Theme.BTN_EDGE);
         d.text(c, "공격", Theme.BTN_ATTACK_X, Theme.BTN_ATTACK_Y + 3f, 23f, Theme.TEXT, Draw.CENTER, true);
-        d.text(c, "연타 = 연속기", Theme.BTN_ATTACK_X, Theme.BTN_ATTACK_Y + 24f, 11f, 0xBBF0D7B4,
+
+        // 활과 검을 바꿔 쓰는 캐릭터(오디세우스)는 지금 어떤 무기가 나갈지 보여 줍니다.
+        String sub = "연타 = 연속기";
+        int subColor = 0xBBF0D7B4;
+        if (player != null && player.meleeLightMove != null) {
+            sub = player.usingMelee ? "검 · 근접" : "활 · 원거리";
+            subColor = player.usingMelee ? 0xFFFFD9A0 : 0xFF9FD8F0;
+        }
+        d.text(c, sub, Theme.BTN_ATTACK_X, Theme.BTN_ATTACK_Y + 24f, 11f, subColor,
                 Draw.CENTER, false);
 
         // --- 방어
