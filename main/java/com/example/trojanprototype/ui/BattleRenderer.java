@@ -124,7 +124,7 @@ public final class BattleRenderer {
         }
 
         float bw = 38f;
-        d.round(c, cx - bw * 0.5f, topY, cx + bw * 0.5f, topY + 5f, 2f, 0xAA1A2230);
+        d.round(c, cx - bw * 0.5f, topY, cx + bw * 0.5f, topY + 5f, 2f, 0xAA120D0A);
         d.round(c, cx - bw * 0.5f, topY,
                 cx - bw * 0.5f + bw * Draw.clamp(f.hpRatio(), 0f, 1f), topY + 5f, 2f,
                 f.team == 0 ? Theme.HP_PLAYER : Theme.HP_ENEMY);
@@ -396,7 +396,7 @@ public final class BattleRenderer {
         d.gauge(c, 38f, hpT, 38f + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H,
                 w.player.hpRatio(), Theme.HP_BACK,
                 w.player.hpRatio() < 0.3f ? Theme.HP_PLAYER_LOW : Theme.HP_PLAYER, 5f);
-        d.roundStroke(c, 38f, hpT, 38f + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H, 5f, 1.5f, 0x55FFFFFF);
+        d.roundStroke(c, 38f, hpT, 38f + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H, 5f, 1.4f, 0xCCB8914F);
         d.text(c, w.player.hp + " / " + w.player.maxHp, 38f + Theme.HP_BAR_W - 6f, hpT + 15f,
                 11f, 0xDDFFFFFF, Draw.RIGHT, true);
 
@@ -435,7 +435,7 @@ public final class BattleRenderer {
             d.round(c, eL + Theme.HP_BAR_W - ew, hpT, eL + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H,
                     5f, Theme.HP_ENEMY);
         }
-        d.roundStroke(c, eL, hpT, eL + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H, 5f, 1.5f, 0x55FFFFFF);
+        d.roundStroke(c, eL, hpT, eL + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H, 5f, 1.4f, 0xCCB8914F);
         d.text(c, w.enemy.hp + " / " + w.enemy.maxHp, eL + 6f, hpT + 15f, 11f,
                 0xDDFFFFFF, Draw.LEFT, true);
         if (w.armyMode) {
@@ -497,7 +497,7 @@ public final class BattleRenderer {
         if (t < 1.25f) {
             float a = Draw.smooth(Draw.clamp(t / 0.35f, 0f, 1f));
             int fade = (int) (170 * a);
-            d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Draw.withAlpha(0xFF070B12, fade));
+            d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Draw.withAlpha(0xFF050302, fade));
 
             float slide = (1f - a) * 60f;
             d.textOutlined(c, w.stage.chapter, 480f - slide, 206f, 16f,
@@ -526,7 +526,7 @@ public final class BattleRenderer {
 
     private static void drawOutro(Canvas c, Draw d, BattleWorld w) {
         float a = Draw.smooth(Draw.clamp(w.phaseTime / 0.5f, 0f, 1f));
-        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Draw.withAlpha(0xFF070B12, (int) (120 * a)));
+        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Draw.withAlpha(0xFF050302, (int) (120 * a)));
         boolean win = (w.result == BattleWorld.RESULT_WIN);
         d.textOutlined(c, win ? "승리" : "패배", 480f, 268f, 62f,
                 Draw.withAlpha(win ? Theme.TEXT_GOLD : 0xFFE08878, (int) (255 * a)),
@@ -534,7 +534,7 @@ public final class BattleRenderer {
     }
 
     private static void drawPause(Canvas c, Draw d) {
-        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xCC070B12);
+        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xCC050302);
         d.text(c, "일시정지", 480f, 168f, 30f, Theme.TEXT, Draw.CENTER, true);
         menuButton(c, d, PAUSE_RESUME, "계속하기", true);
         menuButton(c, d, PAUSE_RETRY, "이 전투 다시 시작", false);
@@ -543,11 +543,8 @@ public final class BattleRenderer {
 
     /** 공용 메뉴 버튼 — Screens 에서도 같은 모양을 씁니다. */
     public static void menuButton(Canvas c, Draw d, float[] r, String label, boolean primary) {
-        d.round(c, r[0], r[1], r[2], r[3], 10f,
-                primary ? Theme.BRONZE : 0xCC28333F);
-        d.roundStroke(c, r[0], r[1], r[2], r[3], 10f, 1.6f,
-                primary ? 0xFFF2D49A : Theme.PANEL_LINE);
+        d.card(c, r[0], r[1], r[2], r[3], primary);
         d.text(c, label, (r[0] + r[2]) * 0.5f, (r[1] + r[3]) * 0.5f + 7f, 19f,
-                primary ? 0xFF231A10 : Theme.TEXT, Draw.CENTER, true);
+                primary ? Theme.TEXT_GOLD : Theme.TEXT, Draw.CENTER, true);
     }
 }

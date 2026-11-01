@@ -27,36 +27,40 @@ public final class Theme {
     public static final float ARENA_RIGHT = 826f;
 
     // ===================== 기본 색 =====================
-    public static final int BG_DEEP = 0xFF0B1119;   // 가장 어두운 배경
-    public static final int PANEL = 0xF2141C27;     // 반투명 패널
-    public static final int PANEL_SOLID = 0xFF141C27;
-    public static final int PANEL_LINE = 0x33E7C98A; // 패널 테두리
+    public static final int BG_DEEP = 0xFF0A0706;   // 가장 어두운 배경
+    public static final int PANEL = 0xF2110C09;     // 반투명 패널
+    public static final int PANEL_SOLID = 0xFF110C09;
+    public static final int PANEL_LINE = 0x88B8914F; // 패널 테두리
 
-    public static final int TEXT = 0xFFF2EDE3;       // 본문 글자
-    public static final int TEXT_DIM = 0xFF9AA7B4;   // 보조 글자
-    public static final int TEXT_GOLD = 0xFFEFC378;  // 강조 글자
+    public static final int TEXT = 0xFFEFE6D4;       // 본문 글자
+    public static final int TEXT_DIM = 0xFFA89A82;   // 보조 글자
+    public static final int TEXT_GOLD = 0xFFE0B96C;  // 강조 글자
 
-    public static final int BRONZE = 0xFFC8893F;     // 청동
-    public static final int BRONZE_LIGHT = 0xFFE9BE7B;
-    public static final int GREEK = 0xFF4E8FB8;      // 그리스 진영
-    public static final int TROY = 0xFFB4544A;       // 트로이 진영
+    public static final int BRONZE = 0xFFB98A44;     // 청동
+    /** 금빛 테두리용 (사진 속 카드의 얇은 금테) */
+    public static final int GOLD_EDGE = 0xFFC9A55E;
+    /** 카드 안쪽 면 */
+    public static final int CARD = 0xE60E0A07;
+    public static final int BRONZE_LIGHT = 0xFFE6C98D;
+    public static final int GREEK = 0xFFC2362B;      // 그리스 진영
+    public static final int TROY = 0xFF8D8A82;       // 트로이 진영
 
     // ===================== 게이지 색 =====================
-    public static final int HP_PLAYER = 0xFF5FBF84;
-    public static final int HP_PLAYER_LOW = 0xFFD9A441;
-    public static final int HP_ENEMY = 0xFFC4514A;
-    public static final int HP_BACK = 0xFF2A3440;
-    public static final int RAGE = 0xFFE8A33D;
+    public static final int HP_PLAYER = 0xFFD2A24A;
+    public static final int HP_PLAYER_LOW = 0xFFE0662F;
+    public static final int HP_ENEMY = 0xFFB3342A;
+    public static final int HP_BACK = 0xFF1B1511;
+    public static final int RAGE = 0xFFE58A2E;
     public static final int RAGE_FULL = 0xFFFFD96B;
 
     // ===================== 버튼 색 =====================
-    public static final int BTN_FACE = 0xCC32414F;
-    public static final int BTN_FACE_ON = 0xEE5C7384;
-    public static final int BTN_EDGE = 0x88E9BE7B;
-    public static final int BTN_ATTACK = 0xCCB0453C;
-    public static final int BTN_ATTACK_ON = 0xEEE2695A;
+    public static final int BTN_FACE = 0xCC1B1511;
+    public static final int BTN_FACE_ON = 0xEE4A3B26;
+    public static final int BTN_EDGE = 0xCCB8914F;
+    public static final int BTN_ATTACK = 0xDD8E2A22;
+    public static final int BTN_ATTACK_ON = 0xEEC9442F;
     public static final int BTN_ULT_READY = 0xDDD9A441;
-    public static final int BTN_DISABLED = 0x8C2A333D;
+    public static final int BTN_DISABLED = 0xAA1A1410;
 
     // ===================== 전투 HUD 배치 =====================
     public static final float HUD_TOP = 22f;

@@ -99,7 +99,7 @@ public final class VirtualPad {
         d.circle(c, Theme.BTN_ULT_X, Theme.BTN_ULT_Y, Theme.BTN_ULT_R, face);
         // 충전 정도를 테두리로 표시
         d.circleStroke(c, Theme.BTN_ULT_X, Theme.BTN_ULT_Y, Theme.BTN_ULT_R - 1f, 3f,
-                ready ? 0xFFFFE9A8 : 0x55E9BE7B);
+                ready ? 0xFFFFE9A8 : 0x88B8914F);
         if (!ready) {
             d.text(c, (int) (rageRatio * 100f) + "%", Theme.BTN_ULT_X, Theme.BTN_ULT_Y + 20f,
                     12f, Theme.RAGE, Draw.CENTER, true);
@@ -111,8 +111,8 @@ public final class VirtualPad {
     // ------------------------------------------------------------------
     private static void drawSmallButtons(Canvas c, Draw d, TouchInput in, boolean aiDebugOn) {
         // 일시정지
-        d.circle(c, Theme.BTN_PAUSE_X, Theme.BTN_PAUSE_Y, Theme.BTN_SMALL_R, 0xAA1E2733);
-        d.circleStroke(c, Theme.BTN_PAUSE_X, Theme.BTN_PAUSE_Y, Theme.BTN_SMALL_R, 1.6f, 0x66E9BE7B);
+        d.circle(c, Theme.BTN_PAUSE_X, Theme.BTN_PAUSE_Y, Theme.BTN_SMALL_R, 0xCC120D0A);
+        d.circleStroke(c, Theme.BTN_PAUSE_X, Theme.BTN_PAUSE_Y, Theme.BTN_SMALL_R, 1.6f, 0xAAB8914F);
         d.rect(c, Theme.BTN_PAUSE_X - 6f, Theme.BTN_PAUSE_Y - 8f,
                 Theme.BTN_PAUSE_X - 2f, Theme.BTN_PAUSE_Y + 8f, Theme.TEXT);
         d.rect(c, Theme.BTN_PAUSE_X + 2f, Theme.BTN_PAUSE_Y - 8f,
@@ -120,16 +120,17 @@ public final class VirtualPad {
 
         // AI 디버그 표시 전환
         d.circle(c, Theme.BTN_AI_X, Theme.BTN_AI_Y, Theme.BTN_SMALL_R,
-                aiDebugOn ? 0xCC2E6B5A : 0xAA1E2733);
+                aiDebugOn ? 0xCC5A4222 : 0xCC120D0A);
         d.circleStroke(c, Theme.BTN_AI_X, Theme.BTN_AI_Y, Theme.BTN_SMALL_R, 1.6f,
-                aiDebugOn ? 0xFF7FE0B0 : 0x66E9BE7B);
+                aiDebugOn ? 0xFFE0B96C : 0xAAB8914F);
         d.text(c, "AI", Theme.BTN_AI_X, Theme.BTN_AI_Y + 5f, 15f,
-                aiDebugOn ? 0xFFDFFFEF : Theme.TEXT_DIM, Draw.CENTER, true);
+                aiDebugOn ? 0xFFFFF0CF : Theme.TEXT_DIM, Draw.CENTER, true);
     }
 
     // ------------------------------------------------------------------
     private static void padCircle(Canvas c, Draw d, float x, float y, float r, boolean on) {
         d.circle(c, x, y, r, on ? Theme.BTN_FACE_ON : Theme.BTN_FACE);
         d.circleStroke(c, x, y, r, 2f, Theme.BTN_EDGE);
+        d.circleStroke(c, x, y, r - 5f, 1f, 0x33E6C98D);
     }
 }

@@ -53,6 +53,10 @@ public final class Backdrop {
                 drawBeach(c, d, time, parallax);
                 break;
         }
+
+        // 사진처럼 전체를 따뜻하게 그을린 톤으로 눌러 주고 가장자리를 어둡게 합니다.
+        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0x30301808);
+        d.vignette(c, Theme.VW, Theme.VH);
     }
 
     // ==================================================================

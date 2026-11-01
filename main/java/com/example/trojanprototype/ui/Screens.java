@@ -30,12 +30,12 @@ public final class Screens {
 
     // ---------------- 버튼 위치 ----------------
     public static final float[][] TITLE_DIFF = {
-            {284f, 282f, 404f, 322f},
-            {420f, 282f, 540f, 322f},
-            {556f, 282f, 676f, 322f}
+            {60f, 366f, 204f, 410f},
+            {218f, 366f, 362f, 410f},
+            {376f, 366f, 520f, 410f}
     };
-    public static final float[] TITLE_START = {330f, 340f, 630f, 396f};
-    public static final float[] TITLE_HOWTO = {330f, 406f, 630f, 448f};
+    public static final float[] TITLE_START = {60f, 190f, 520f, 278f};
+    public static final float[] TITLE_HOWTO = {60f, 290f, 520f, 340f};
 
     public static final float[] STORY_SKIP = {812f, 22f, 938f, 66f};
 
@@ -47,56 +47,73 @@ public final class Screens {
     // ==================================================================
     public static void drawTitle(Canvas c, Draw d, float time, int diffIndex) {
         Backdrop.draw(c, d, Backdrop.NIGHT_GATE, time, 0f);
-        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0x99070B12);
-        // 제목이 놓이는 구간을 가로 전체로 한 번 더 어둡게 덮어
-        // 뒤에 있는 성문의 세로 경계가 글자를 가로지르지 않게 합니다.
-        d.rect(c, 0f, 52f, Theme.VW, 268f, 0x77070B12);
+        // 왼쪽 메뉴 영역을 어둡게 눌러 글자가 또렷하게 보이게 합니다.
+        for (int i = 0; i < 8; i++) {
+            d.rect(c, i * 80f, 0f, i * 80f + 81f, Theme.VH,
+                    Draw.withAlpha(0xFF050302, 190 - i * 24));
+        }
 
-        d.text(c, "ANDROID · JAVA · 2D FIGHTING", 480f, 84f, 13f, Theme.BRONZE_LIGHT,
-                Draw.CENTER, true);
-        d.textOutlined(c, "트로이 전쟁", 480f, 162f, 60f, Theme.TEXT, Draw.CENTER, true);
-        d.text(c, "얼굴, 전쟁, 남자, 생각 그리고 속임수", 480f, 198f, 17f,
-                Theme.TEXT_GOLD, Draw.CENTER, false);
-        d.line(c, 366f, 220f, 594f, 220f, 1.5f, 0x55E9BE7B);
-        d.text(c, "영화 《오디세이》의 배경이 된 전쟁을 플레이로 따라갑니다", 480f, 246f, 14f,
-                Theme.TEXT_DIM, Draw.CENTER, false);
+        // ---- 상단 바
+        d.rect(c, 0f, 0f, Theme.VW, 56f, 0xE60A0705);
+        d.line(c, 0f, 56f, Theme.VW, 56f, 1.2f, 0x88B8914F);
+        d.spaced(c, "트로이 전쟁", 60f, 37f, 24f, Theme.TEXT_GOLD, Draw.LEFT, true, 6f);
 
-        // 난이도 선택
-        d.text(c, "난이도", 252f, 308f, 14f, Theme.TEXT_DIM, Draw.RIGHT, true);
+        // ---- 로고 영역
+        d.spaced(c, "트로이", 60f, 142f, 52f, Theme.TEXT, Draw.LEFT, true, 10f);
+        d.line(c, 62f, 158f, 200f, 158f, 1.6f, 0xFFC9A55E);
+        d.text(c, "얼굴, 전쟁, 남자, 생각 그리고 속임수", 62f, 178f, 14f,
+                Theme.TEXT_GOLD, Draw.LEFT, false);
+
+        // ---- 메인 카드: 이야기 시작
+        float[] st = TITLE_START;
+        d.card(c, st[0], st[1], st[2], st[3], true);
+        float blink = 0.72f + 0.28f * (float) Math.sin(time * 3.4f);
+        d.round(c, st[0], st[1], st[2], st[3], 3f, Draw.withAlpha(0xFFFFE2A8, (int) (14 * blink)));
+        d.text(c, "이야기 시작", st[0] + 28f, st[1] + 40f, 30f, Theme.TEXT, Draw.LEFT, true);
+        String sub = "트로이의 운명을 바꾸는 전쟁";
+        if (diffIndex >= 0 && diffIndex < GameData.DIFFICULTIES.length) {
+            sub = GameData.DIFFICULTIES[diffIndex].note;
+        }
+        d.text(c, sub, st[0] + 28f, st[1] + 68f, 14f, Theme.TEXT_DIM, Draw.LEFT, false);
+        d.chevron(c, st[2] - 30f, (st[1] + st[3]) * 0.5f, 8f, Theme.TEXT);
+
+        // ---- 보조 카드: 조작 방법
+        float[] ho = TITLE_HOWTO;
+        d.card(c, ho[0], ho[1], ho[2], ho[3], false);
+        d.text(c, "조작 방법", ho[0] + 28f, (ho[1] + ho[3]) * 0.5f + 7f, 20f,
+                Theme.TEXT, Draw.LEFT, true);
+        d.chevron(c, ho[2] - 30f, (ho[1] + ho[3]) * 0.5f, 7f, Theme.TEXT_DIM);
+
+        // ---- 난이도
+        d.spaced(c, "난이도", 62f, 358f, 12f, Theme.BRONZE_LIGHT, Draw.LEFT, true, 3f);
         for (int i = 0; i < TITLE_DIFF.length && i < GameData.DIFFICULTIES.length; i++) {
             float[] r = TITLE_DIFF[i];
             boolean on = (i == diffIndex);
-            d.round(c, r[0], r[1], r[2], r[3], 9f, on ? Theme.BRONZE : 0xB3222D38);
-            d.roundStroke(c, r[0], r[1], r[2], r[3], 9f, 1.5f,
-                    on ? 0xFFF2D49A : Theme.PANEL_LINE);
-            d.text(c, GameData.DIFFICULTIES[i].name, (r[0] + r[2]) * 0.5f,
+            d.card(c, r[0], r[1], r[2], r[3], on);
+            if (on) {
+                d.round(c, r[0], r[1], r[2], r[3], 3f, 0x33C9A55E);
+            }
+            d.text(c, GameData.DIFFICULTIES[i].name, (r[0] + r[2]) * 0.5f + (on ? 2f : 0f),
                     (r[1] + r[3]) * 0.5f + 6f, 17f,
-                    on ? 0xFF231A10 : Theme.TEXT, Draw.CENTER, true);
+                    on ? Theme.TEXT_GOLD : Theme.TEXT_DIM, Draw.CENTER, true);
         }
         if (diffIndex >= 0 && diffIndex < GameData.DIFFICULTIES.length) {
             GameData.Difficulty df = GameData.DIFFICULTIES[diffIndex];
-            d.text(c, df.note + " · AI 판단 주기 " + fmt(df.reactionTime) + "초",
-                    700f, 308f, 12f, Theme.TEXT_DIM, Draw.LEFT, false);
+            d.text(c, "AI 판단 주기 " + fmt(df.reactionTime) + "초", 62f, 436f, 12f,
+                    Theme.TEXT_DIM, Draw.LEFT, false);
         }
 
-        // 깜빡이는 시작 버튼
-        float blink = 0.72f + 0.28f * (float) Math.sin(time * 3.4f);
-        BattleRenderer.menuButton(c, d, TITLE_START, "이야기 시작", true);
-        d.round(c, TITLE_START[0], TITLE_START[1], TITLE_START[2], TITLE_START[3], 10f,
-                Draw.withAlpha(0xFFFFFFFF, (int) (22 * blink)));
-        BattleRenderer.menuButton(c, d, TITLE_HOWTO, "조작 방법", false);
-
-        d.text(c, "10조 · 심신 · 유장원", 480f, 476f, 11f, Theme.TEXT_DIM, Draw.CENTER, false);
-        d.text(c, StoryData.DISCLAIMER, 480f, 500f, 11f, 0x99A8B4BE, Draw.CENTER, false);
+        // ---- 하단 장식선
+        d.line(c, 60f, 492f, 900f, 492f, 1f, 0x55B8914F);
+        d.rect(c, 476f, 488f, 484f, 496f, 0xFFC9A55E);
     }
 
     /** 조작 방법 안내 (타이틀 위에 겹쳐 띄웁니다) */
     public static void drawHowTo(Canvas c, Draw d) {
-        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xE6070B12);
-        d.round(c, 110f, 56f, 850f, 486f, 14f, Theme.PANEL);
-        d.roundStroke(c, 110f, 56f, 850f, 486f, 14f, 1.5f, Theme.PANEL_LINE);
+        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xE6050302);
+        d.panel(c, 110f, 56f, 850f, 486f, Theme.PANEL);
 
-        d.text(c, "조작 방법", 480f, 100f, 26f, Theme.TEXT_GOLD, Draw.CENTER, true);
+        d.spaced(c, "조작 방법", 480f, 100f, 26f, Theme.TEXT_GOLD, Draw.CENTER, true, 6f);
 
         String[][] rows = {
                 {"◀ ▶", "좌우 이동 — 누르고 있으면 계속 걷습니다"},
@@ -104,16 +121,17 @@ public final class Screens {
                 {"방어", "누르고 있는 동안 피해가 75% 줄어듭니다 (강공격은 막히지 않음)"},
                 {"회피", "짧게 무적이 됩니다. 적의 공격 직전에 쓰세요"},
                 {"필살기", "분노가 100%가 되면 사용할 수 있습니다"},
-                {"AI", "적 AI 의 판단 과정을 화면에 표시합니다 (발표 시연용)"}
+                {"AI", "적 AI 의 판단 과정을 화면에 표시합니다"}
         };
         for (int i = 0; i < rows.length; i++) {
             float y = 146f + i * 42f;
-            d.round(c, 150f, y - 20f, 258f, y + 12f, 8f, 0x55313E4C);
+            d.round(c, 150f, y - 20f, 258f, y + 12f, 3f, 0x66241A10);
+            d.roundStroke(c, 150f, y - 20f, 258f, y + 12f, 3f, 1f, 0x66B8914F);
             d.text(c, rows[i][0], 204f, y + 3f, 16f, Theme.TEXT_GOLD, Draw.CENTER, true);
             d.text(c, rows[i][1], 278f, y + 3f, 14f, Theme.TEXT, Draw.LEFT, false);
         }
 
-        d.line(c, 150f, 404f, 810f, 404f, 1f, 0x33E9BE7B);
+        d.line(c, 150f, 404f, 810f, 404f, 1f, 0x66B8914F);
         d.text(c, "1·2장은 군대전 — 그리스군(아킬레우스 + 돌격군 3 + 궁수 2) 대 트로이군. "
                 + "적 대장을 먼저 쓰러뜨리면 승리", 480f, 424f, 13f, Theme.TEXT_GOLD,
                 Draw.CENTER, false);
@@ -129,18 +147,17 @@ public final class Screens {
     public static void drawStory(Canvas c, Draw d, Assets assets, StoryData.Chapter ch,
                                  int shownLines, float lineTime, float time) {
         Backdrop.draw(c, d, ch.backdrop, time, 0f);
-        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0x88070B12);
+        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0x88050302);
 
         boolean switching = (ch.newHero != null);
         // 주인공이 바뀌는 장에서는 글상자를 왼쪽으로 좁혀 오른쪽에 캐릭터를 세웁니다.
         float panelRight = switching ? 620f : 890f;
 
-        d.round(c, 70f, 96f, panelRight, 420f, 14f, 0xD60E141E);
-        d.roundStroke(c, 70f, 96f, panelRight, 420f, 14f, 1.5f, Theme.PANEL_LINE);
+        d.panel(c, 70f, 96f, panelRight, 420f, 0xDD0C0806);
 
-        d.text(c, ch.tag, 104f, 138f, 14f, Theme.BRONZE_LIGHT, Draw.LEFT, true);
+        d.spaced(c, ch.tag, 104f, 138f, 13f, Theme.BRONZE_LIGHT, Draw.LEFT, true, 3f);
         d.textOutlined(c, ch.title, 104f, 178f, 30f, Theme.TEXT, Draw.LEFT, true);
-        d.line(c, 104f, 196f, 280f, 196f, 1.5f, 0x55E9BE7B);
+        d.line(c, 104f, 196f, 280f, 196f, 1.6f, 0xFFC9A55E);
 
         // 주인공 교체 장은 대사가 길어서 글자와 줄 간격을 줄입니다.
         float fontSize = switching ? 15f : 17f;
@@ -170,7 +187,6 @@ public final class Screens {
         }
 
         BattleRenderer.menuButton(c, d, STORY_SKIP, "건너뛰기", false);
-        d.text(c, StoryData.DISCLAIMER, 480f, 448f, 11f, 0x88A8B4BE, Draw.CENTER, false);
     }
 
     /** "이제부터 이 캐릭터로 싸웁니다" 안내 */
@@ -212,34 +228,33 @@ public final class Screens {
     // ==================================================================
     public static void drawResult(Canvas c, Draw d, BattleWorld w, boolean hasNext, float time) {
         Backdrop.draw(c, d, w.stage == null ? 0 : w.stage.backdrop, time, 0f);
-        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xCC070B12);
+        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xCC050302);
 
         boolean win = (w.result == BattleWorld.RESULT_WIN);
 
-        d.round(c, 90f, 56f, 870f, 388f, 14f, 0xE60E141E);
-        d.roundStroke(c, 90f, 56f, 870f, 388f, 14f, 1.5f, Theme.PANEL_LINE);
+        d.panel(c, 90f, 56f, 870f, 398f, 0xEE0C0806);
 
         d.text(c, w.stage.chapter + " · " + w.stage.place, 130f, 98f, 13f,
                 Theme.BRONZE_LIGHT, Draw.LEFT, true);
         d.textOutlined(c, win ? "승리" : "패배", 130f, 150f, 40f,
-                win ? Theme.TEXT_GOLD : 0xFFE08878, Draw.LEFT, true);
+                win ? Theme.TEXT_GOLD : 0xFFD9604C, Draw.LEFT, true);
 
         // 해설 (스토리 전달)
         String note = win ? w.stage.victoryNote : w.stage.defeatNote;
         d.text(c, note, 130f, 196f, 16f, Theme.TEXT, Draw.LEFT, false);
-        d.line(c, 130f, 222f, 830f, 222f, 1f, 0x33E9BE7B);
+        d.line(c, 130f, 222f, 830f, 222f, 1f, 0x66B8914F);
 
         // 전투 기록
         int sec = (int) w.elapsed;
-        record(c, d, 130f, 262f, "남은 체력", w.player.hp + " / " + w.player.maxHp);
-        record(c, d, 330f, 262f, "최대 연속타격", w.bestCombo + " 타");
-        record(c, d, 530f, 262f, "소요 시간", sec + "초");
-        record(c, d, 700f, 262f, "난이도", w.difficulty.name);
+        record(c, d, 130f, 252f, "남은 체력", w.player.hp + " / " + w.player.maxHp);
+        record(c, d, 330f, 252f, "최대 연속타격", w.bestCombo + " 타");
+        record(c, d, 530f, 252f, "소요 시간", sec + "초");
+        record(c, d, 700f, 252f, "난이도", w.difficulty.name);
 
-        record(c, d, 130f, 324f, "상대", w.enemy.name + " (" + w.enemy.title + ")");
-        record(c, d, 530f, 324f, "사용 캐릭터", w.character.name);
+        record(c, d, 130f, 306f, "상대", w.enemy.name + " (" + w.enemy.title + ")");
+        record(c, d, 530f, 306f, "사용 캐릭터", w.character.name);
         if (w.armyMode) {
-            record(c, d, 130f, 356f - 0f, "생존 병사",
+            record(c, d, 130f, 360f, "생존 병사",
                     "그리스군 " + (w.aliveSoldiers(0, Fighter.ROLE_ASSAULT) + w.aliveSoldiers(0, Fighter.ROLE_ARCHER))
                             + " / " + w.totalSoldiers(0)
                             + "   트로이군 " + (w.aliveSoldiers(1, Fighter.ROLE_ASSAULT) + w.aliveSoldiers(1, Fighter.ROLE_ARCHER))
@@ -253,7 +268,7 @@ public final class Screens {
 
     private static void record(Canvas c, Draw d, float x, float y, String label, String value) {
         d.text(c, label, x, y, 12f, Theme.TEXT_DIM, Draw.LEFT, false);
-        d.text(c, value, x, y + 24f, 18f, Theme.TEXT, Draw.LEFT, true);
+        d.text(c, value, x, y + 22f, 18f, Theme.TEXT, Draw.LEFT, true);
     }
 
     // ==================================================================
@@ -261,7 +276,7 @@ public final class Screens {
     // ==================================================================
     public static void drawFinale(Canvas c, Draw d, float time) {
         Backdrop.draw(c, d, Backdrop.SEA, time, 0f);
-        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0x99070B12);
+        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0x99050302);
 
         float a1 = Draw.smooth(Draw.clamp(time / 1.2f, 0f, 1f));
         float a2 = Draw.smooth(Draw.clamp((time - 1.4f) / 1.2f, 0f, 1f));
@@ -283,7 +298,6 @@ public final class Screens {
                     Draw.withAlpha(Theme.TEXT_GOLD, (int) (120 + 135 * blink)),
                     Draw.CENTER, true);
         }
-        d.text(c, StoryData.DISCLAIMER, 480f, 508f, 11f, 0x88A8B4BE, Draw.CENTER, false);
     }
 
     private static String fmt(float v) {
