@@ -5,13 +5,19 @@ import android.graphics.Canvas;
 
 import com.example.trojanprototype.audio.SoundManager;
 import com.example.trojanprototype.battle.BattleWorld;
+import com.example.trojanprototype.data.ChapterData;
 import com.example.trojanprototype.data.GameData;
+import com.example.trojanprototype.data.SaveManager;
 import com.example.trojanprototype.data.StoryData;
 import com.example.trojanprototype.ui.BattleRenderer;
 import com.example.trojanprototype.ui.Screens;
 import com.example.trojanprototype.ui.Theme;
 import com.example.trojanprototype.util.Assets;
 import com.example.trojanprototype.util.Draw;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 /**
  * 게임 전체 흐름(씬 전환)을 관리합니다.
@@ -33,6 +39,16 @@ import com.example.trojanprototype.util.Draw;
  *
  * flowStep 숫자 하나로 위 순서를 관리하므로,
  * 장면을 추가하려면 advanceFlow() 의 switch 에 한 줄만 넣으면 됩니다.
+ *
+ * ── 저장 · 이어하기 · 챕터 선택 ───────────────────────────
+ *   타이틀 ─► 새 이야기 시작 ─► 저장 슬롯 고르기 ─► 프롤로그부터
+ *          ─► 이어하기       ─► 저장 슬롯 고르기 ─► 저장한 장면부터
+ *          ─► 챕터 선택      ─► 열린 챕터 고르기 ─► 그 챕터부터 (이후 순서대로)
+ *
+ *   · 저장 슬롯은 3개. 저장 내용은 "다시 시작할 flowStep" 하나입니다.
+ *     (컷신 중에 저장하면 그 컷신부터, 전투 중에 저장하면 그 전투를 처음부터)
+ *   · 슬롯으로 시작한 플레이는 전투에 이길 때마다 그 슬롯에 자동 저장됩니다.
+ *   · 챕터는 앞 챕터를 클리어해야 열립니다 (ChapterData 참고).
  */
 public class GameEngine {
 
@@ -42,12 +58,15 @@ public class GameEngine {
     public static final int SCENE_BATTLE = 3;
     public static final int SCENE_RESULT = 4;
     public static final int SCENE_FINALE = 5;
+    public static final int SCENE_SLOTS = 6;
+    public static final int SCENE_CHAPTERS = 7;
 
     private final Assets assets;
     private final SoundManager sound;
     private final TouchInput input;
     private final Draw d = new Draw();
     private final BattleWorld world = new BattleWorld();
+    private final SaveManager save;
 
     private int scene = SCENE_TITLE;
     private float sceneTime = 0f;
@@ -67,10 +86,30 @@ public class GameEngine {
 
     private int tipIndex = 0;
 
+    // ---- 저장 / 챕터 선택 상태 ----
+    private final SaveManager.Slot[] slots = new SaveManager.Slot[SaveManager.SLOT_COUNT];
+    private boolean hasSave = false;
+    private int slotMode = Screens.SLOT_MODE_LOAD;
+    private int slotReturnScene = SCENE_TITLE;
+    private int confirm = Screens.CONFIRM_NONE;
+    private int confirmSlot = -1;
+    /** 지금 플레이가 기록되고 있는 슬롯 (-1 이면 자동 저장 없음) */
+    private int activeSlot = -1;
+    /** 클리어한 챕터 수 (챕터 선택 해금 기준) */
+    private int cleared = 0;
+    /** 이번 플레이의 누적 시간(초) — 슬롯에 함께 저장됩니다 */
+    private float playTime = 0f;
+
+    private String toast = null;
+    private float toastTime = 0f;
+
     public GameEngine(Context ctx, TouchInput input) {
         this.input = input;
         this.assets = new Assets(ctx);
         this.sound = new SoundManager(ctx, assets);
+        this.save = new SaveManager(ctx);
+        this.cleared = save.cleared();
+        refreshSlots();
         setScene(SCENE_TITLE);
     }
 
@@ -103,6 +142,9 @@ public class GameEngine {
             case SCENE_FINALE:
                 sound.playBgm("bgm_story");
                 break;
+            case SCENE_SLOTS:
+                sound.playBgm(slotMode == Screens.SLOT_MODE_SAVE ? "bgm_story" : "bgm_title");
+                break;
             default:
                 sound.playBgm("bgm_title");
                 break;
@@ -118,6 +160,14 @@ public class GameEngine {
      */
     private void advanceFlow() {
         flowStep++;
+
+        // 컷신뿐인 챕터는 끝까지 보면 클리어 (전투 챕터는 전투에 이겼을 때 클리어)
+        if (flowStep == ChapterData.LIST[1].startStep) {
+            onChapterCleared(0, flowStep);          // 프롤로그를 끝까지 봄
+        } else if (flowStep == ChapterData.ENDING_STEP) {
+            onChapterCleared(ChapterData.count() - 1, flowStep);   // 5장 귀향
+        }
+
         switch (flowStep) {
             case 1: showStory(StoryData.PROLOGUE); break;
 
@@ -168,7 +218,124 @@ public class GameEngine {
     private void backToTitle() {
         flowStep = 0;
         stageIndex = 0;
+        activeSlot = -1;
+        confirm = Screens.CONFIRM_NONE;
+        refreshSlots();
         setScene(SCENE_TITLE);
+    }
+
+    // ==================================================================
+    //  저장 · 이어하기 · 챕터 선택
+    // ==================================================================
+    private void toast(String msg) {
+        toast = msg;
+        toastTime = 2.4f;
+    }
+
+    /** 저장소에서 슬롯 3개를 다시 읽어 화면 표시용 문구까지 만들어 둡니다. */
+    private void refreshSlots() {
+        SimpleDateFormat fmt = new SimpleDateFormat("yyyy.MM.dd HH:mm", Locale.KOREA);
+        for (int i = 0; i < SaveManager.SLOT_COUNT; i++) {
+            SaveManager.Slot s = save.read(i);
+            if (s.used) {
+                ChapterData.Entry e = ChapterData.LIST[ChapterData.chapterOfStep(s.step)];
+                boolean ending = s.step >= ChapterData.ENDING_STEP;
+                s.tag = ending ? "ENDING" : e.tag;
+                s.title = ending ? "ODYSSEY · The Journey Home" : e.title;
+                s.where = ChapterData.resumeLabel(s.step);
+                s.meta = "난이도 " + GameData.DIFFICULTIES[s.difficulty].name
+                        + " · 플레이 " + formatPlayTime(s.playSeconds);
+                s.date = s.savedAt > 0 ? fmt.format(new Date(s.savedAt)) : "";
+            }
+            slots[i] = s;
+        }
+        hasSave = save.hasAnySlot();
+        cleared = save.cleared();
+    }
+
+    private static String formatPlayTime(long sec) {
+        long h = sec / 3600;
+        long m = (sec % 3600) / 60;
+        long s = sec % 60;
+        if (h > 0) return h + "시간 " + m + "분";
+        if (m > 0) return m + "분 " + s + "초";
+        return s + "초";
+    }
+
+    private void openSlots(int mode, int returnScene) {
+        refreshSlots();
+        slotMode = mode;
+        slotReturnScene = returnScene;
+        confirm = Screens.CONFIRM_NONE;
+        confirmSlot = -1;
+        setScene(SCENE_SLOTS);
+    }
+
+    /** 슬롯 화면을 닫고 원래 화면으로 돌아갑니다. */
+    private void leaveSlots() {
+        confirm = Screens.CONFIRM_NONE;
+        if (slotMode == Screens.SLOT_MODE_SAVE) {
+            setScene(slotReturnScene);
+            if (slotReturnScene == SCENE_BATTLE) paused = true;   // 전투는 멈춘 채로 돌아옵니다
+        } else {
+            setScene(SCENE_TITLE);
+        }
+    }
+
+    /** 지금 저장하면 "다시 시작할 장면"이 되는 flowStep */
+    private int currentCheckpoint() {
+        if (slotReturnScene == SCENE_RESULT && world.result == BattleWorld.RESULT_WIN) {
+            return Math.min(flowStep + 1, ChapterData.ENDING_STEP);   // 이긴 전투는 다음 장면부터
+        }
+        return Math.max(1, Math.min(flowStep, ChapterData.ENDING_STEP));
+    }
+
+    private void saveToSlot(int index) {
+        save.write(index, currentCheckpoint(), diffIndex, (long) playTime);
+        activeSlot = index;
+        sound.play("sfx_select");
+        refreshSlots();
+        toast("슬롯 " + (index + 1) + " 에 저장했습니다");
+        leaveSlots();
+    }
+
+    private void startNewGame(int index) {
+        activeSlot = index;
+        playTime = 0f;
+        save.write(index, 1, diffIndex, 0L);
+        refreshSlots();
+        flowStep = 0;
+        advanceFlow();
+    }
+
+    private void loadSlot(int index) {
+        SaveManager.Slot s = save.read(index);
+        if (!s.used) {
+            toast("비어 있는 슬롯입니다");
+            return;
+        }
+        activeSlot = index;
+        diffIndex = s.difficulty;
+        playTime = s.playSeconds;
+        flowStep = s.step - 1;
+        advanceFlow();
+    }
+
+    private void startChapter(int chapter) {
+        activeSlot = -1;        // 챕터 선택 플레이는 슬롯에 자동 기록하지 않습니다.
+        playTime = 0f;
+        flowStep = ChapterData.LIST[chapter].startStep - 1;
+        advanceFlow();
+    }
+
+    /** 챕터 하나를 클리어했을 때: 해금 기록 + (슬롯으로 하는 중이면) 자동 저장 */
+    private void onChapterCleared(int chapter, int nextStep) {
+        save.markCleared(chapter);
+        cleared = save.cleared();
+        if (activeSlot >= 0) {
+            save.write(activeSlot, nextStep, diffIndex, (long) playTime);
+            hasSave = true;
+        }
     }
 
     // ==================================================================
@@ -177,8 +344,15 @@ public class GameEngine {
     public void update(float dt) {
         sceneTime += dt;
         input.update(dt);
+        if (toastTime > 0f) toastTime -= dt;
+        if (scene == SCENE_STORY || scene == SCENE_RESULT || scene == SCENE_FINALE
+                || (scene == SCENE_BATTLE && !paused)) {
+            playTime += dt;
+        }
 
         switch (scene) {
+            case SCENE_SLOTS: updateSlots(); break;
+            case SCENE_CHAPTERS: updateChapters(); break;
             case SCENE_TITLE: updateTitle(); break;
             case SCENE_HOWTO: updateHowTo(); break;
             case SCENE_STORY: updateStory(dt); break;
@@ -204,8 +378,24 @@ public class GameEngine {
         if (input.consumeTapIn(Screens.TITLE_START[0], Screens.TITLE_START[1],
                 Screens.TITLE_START[2], Screens.TITLE_START[3])) {
             sound.play("sfx_select");
-            flowStep = 0;
-            advanceFlow();
+            openSlots(Screens.SLOT_MODE_NEW, SCENE_TITLE);
+            return;
+        }
+        if (input.consumeTapIn(Screens.TITLE_CONTINUE[0], Screens.TITLE_CONTINUE[1],
+                Screens.TITLE_CONTINUE[2], Screens.TITLE_CONTINUE[3])) {
+            if (hasSave) {
+                sound.play("sfx_select");
+                openSlots(Screens.SLOT_MODE_LOAD, SCENE_TITLE);
+            } else {
+                toast("저장된 이야기가 없습니다");
+            }
+            return;
+        }
+        if (input.consumeTapIn(Screens.TITLE_CHAPTERS[0], Screens.TITLE_CHAPTERS[1],
+                Screens.TITLE_CHAPTERS[2], Screens.TITLE_CHAPTERS[3])) {
+            sound.play("sfx_select");
+            cleared = save.cleared();
+            setScene(SCENE_CHAPTERS);
             return;
         }
         if (input.consumeTapIn(Screens.TITLE_HOWTO[0], Screens.TITLE_HOWTO[1],
@@ -229,6 +419,13 @@ public class GameEngine {
                 Screens.STORY_SKIP[2], Screens.STORY_SKIP[3])) {
             sound.play("sfx_select");
             advanceFlow();
+            return;
+        }
+
+        if (input.consumeTapIn(Screens.STORY_SAVE[0], Screens.STORY_SAVE[1],
+                Screens.STORY_SAVE[2], Screens.STORY_SAVE[3])) {
+            sound.play("sfx_select");
+            openSlots(Screens.SLOT_MODE_SAVE, SCENE_STORY);
             return;
         }
 
@@ -271,6 +468,12 @@ public class GameEngine {
                 paused = false;
                 return;
             }
+            if (input.consumeTapIn(BattleRenderer.PAUSE_SAVE[0], BattleRenderer.PAUSE_SAVE[1],
+                    BattleRenderer.PAUSE_SAVE[2], BattleRenderer.PAUSE_SAVE[3])) {
+                sound.play("sfx_select");
+                openSlots(Screens.SLOT_MODE_SAVE, SCENE_BATTLE);
+                return;
+            }
             if (input.consumeTapIn(BattleRenderer.PAUSE_TITLE[0], BattleRenderer.PAUSE_TITLE[1],
                     BattleRenderer.PAUSE_TITLE[2], BattleRenderer.PAUSE_TITLE[3])) {
                 backToTitle();
@@ -281,6 +484,11 @@ public class GameEngine {
         world.update(dt, input);
 
         if (world.finished) {
+            if (world.result == BattleWorld.RESULT_WIN) {
+                // 전투 챕터는 이겨야 클리어 — 다음 챕터가 열리고, 슬롯 플레이면 자동 저장됩니다.
+                onChapterCleared(stageIndex + 1, Math.min(flowStep + 1, ChapterData.ENDING_STEP));
+                if (activeSlot >= 0) toast("슬롯 " + (activeSlot + 1) + " 에 자동 저장했습니다");
+            }
             setScene(SCENE_RESULT);
         }
     }
@@ -299,11 +507,127 @@ public class GameEngine {
             }
             return;
         }
+        if (input.consumeTapIn(Screens.RESULT_SAVE[0], Screens.RESULT_SAVE[1],
+                Screens.RESULT_SAVE[2], Screens.RESULT_SAVE[3])) {
+            sound.play("sfx_select");
+            openSlots(Screens.SLOT_MODE_SAVE, SCENE_RESULT);
+            return;
+        }
         if (input.consumeTapIn(Screens.RESULT_SECONDARY[0], Screens.RESULT_SECONDARY[1],
                 Screens.RESULT_SECONDARY[2], Screens.RESULT_SECONDARY[3])) {
             sound.play("sfx_select");
             backToTitle();
         }
+    }
+
+    private void updateSlots() {
+        // 확인 창이 떠 있으면 그 창만 반응합니다.
+        if (confirm != Screens.CONFIRM_NONE) {
+            if (input.consumeTapIn(Screens.CONFIRM_YES[0], Screens.CONFIRM_YES[1],
+                    Screens.CONFIRM_YES[2], Screens.CONFIRM_YES[3])) {
+                int target = confirmSlot;
+                int kind = confirm;
+                confirm = Screens.CONFIRM_NONE;
+                if (kind == Screens.CONFIRM_DELETE) {
+                    save.delete(target);
+                    if (activeSlot == target) activeSlot = -1;
+                    refreshSlots();
+                    toast("슬롯 " + (target + 1) + " 을(를) 삭제했습니다");
+                } else if (slotMode == Screens.SLOT_MODE_NEW) {
+                    startNewGame(target);
+                } else {
+                    saveToSlot(target);
+                }
+                return;
+            }
+            if (input.consumeTapIn(Screens.CONFIRM_NO[0], Screens.CONFIRM_NO[1],
+                    Screens.CONFIRM_NO[2], Screens.CONFIRM_NO[3])) {
+                confirm = Screens.CONFIRM_NONE;
+                return;
+            }
+            input.consumeTap();
+            return;
+        }
+
+        if (input.consumeTapIn(Screens.SLOT_BACK[0], Screens.SLOT_BACK[1],
+                Screens.SLOT_BACK[2], Screens.SLOT_BACK[3])) {
+            sound.play("sfx_select");
+            leaveSlots();
+            return;
+        }
+
+        for (int i = 0; i < SaveManager.SLOT_COUNT; i++) {
+            // 삭제 버튼은 줄 안쪽에 있으므로 줄보다 먼저 확인합니다.
+            if (slots[i].used) {
+                float[] del = Screens.slotDelete(i);
+                if (input.consumeTapIn(del[0], del[1], del[2], del[3])) {
+                    sound.play("sfx_select");
+                    confirm = Screens.CONFIRM_DELETE;
+                    confirmSlot = i;
+                    return;
+                }
+            }
+            float[] r = Screens.SLOT_ROWS[i];
+            if (input.consumeTapIn(r[0], r[1], r[2], r[3])) {
+                onSlotChosen(i);
+                return;
+            }
+        }
+        input.consumeTap();     // 빈 곳을 누른 탭은 버립니다.
+    }
+
+    private void onSlotChosen(int i) {
+        boolean used = slots[i].used;
+        switch (slotMode) {
+            case Screens.SLOT_MODE_LOAD:
+                if (used) {
+                    sound.play("sfx_select");
+                    loadSlot(i);
+                } else {
+                    toast("비어 있는 슬롯입니다");
+                }
+                break;
+            case Screens.SLOT_MODE_NEW:
+                sound.play("sfx_select");
+                if (used) {
+                    confirm = Screens.CONFIRM_OVERWRITE;
+                    confirmSlot = i;
+                } else {
+                    startNewGame(i);
+                }
+                break;
+            default:    // SLOT_MODE_SAVE
+                if (used) {
+                    sound.play("sfx_select");
+                    confirm = Screens.CONFIRM_OVERWRITE;
+                    confirmSlot = i;
+                } else {
+                    saveToSlot(i);
+                }
+                break;
+        }
+    }
+
+    private void updateChapters() {
+        if (input.consumeTapIn(Screens.CHAPTER_BACK[0], Screens.CHAPTER_BACK[1],
+                Screens.CHAPTER_BACK[2], Screens.CHAPTER_BACK[3])) {
+            sound.play("sfx_select");
+            setScene(SCENE_TITLE);
+            return;
+        }
+        for (int i = 0; i < ChapterData.count() && i < Screens.CHAPTER_CARDS.length; i++) {
+            float[] r = Screens.CHAPTER_CARDS[i];
+            if (input.consumeTapIn(r[0], r[1], r[2], r[3])) {
+                if (ChapterData.isUnlocked(i, cleared)) {
+                    sound.play("sfx_select");
+                    startChapter(i);
+                } else {
+                    toast("이전 챕터를 클리어하면 열립니다");
+                }
+                return;
+            }
+        }
+        input.consumeTap();
     }
 
     private void updateFinale() {
@@ -320,11 +644,17 @@ public class GameEngine {
     public void render(Canvas c) {
         switch (scene) {
             case SCENE_TITLE:
-                Screens.drawTitle(c, d, sceneTime, diffIndex);
+                Screens.drawTitle(c, d, assets, sceneTime, diffIndex, cleared, hasSave);
                 break;
             case SCENE_HOWTO:
-                Screens.drawTitle(c, d, sceneTime, diffIndex);
+                Screens.drawTitle(c, d, assets, sceneTime, diffIndex, cleared, hasSave);
                 Screens.drawHowTo(c, d);
+                break;
+            case SCENE_SLOTS:
+                Screens.drawSlots(c, d, sceneTime, slotMode, slots, confirm, confirmSlot);
+                break;
+            case SCENE_CHAPTERS:
+                Screens.drawChapters(c, d, sceneTime, cleared);
                 break;
             case SCENE_STORY:
                 Screens.drawStory(c, d, assets, story, storyShown, storyLineTime, sceneTime);
@@ -343,6 +673,7 @@ public class GameEngine {
                 d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Theme.BG_DEEP);
                 break;
         }
+        Screens.drawToast(c, d, toast, toastTime);
     }
 
     // ==================================================================
@@ -355,6 +686,13 @@ public class GameEngine {
                 return false;   // 타이틀에서 뒤로 = 앱 종료
             case SCENE_BATTLE:
                 paused = !paused;
+                return true;
+            case SCENE_SLOTS:
+                if (confirm != Screens.CONFIRM_NONE) confirm = Screens.CONFIRM_NONE;
+                else leaveSlots();
+                return true;
+            case SCENE_CHAPTERS:
+                setScene(SCENE_TITLE);
                 return true;
             default:
                 backToTitle();

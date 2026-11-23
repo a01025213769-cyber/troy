@@ -27,9 +27,10 @@ public final class BattleRenderer {
     private BattleRenderer() {}
 
     // 일시정지 창의 버튼 위치 — GameEngine 도 이 값을 그대로 씁니다.
-    public static final float[] PAUSE_RESUME = {350f, 212f, 610f, 264f};
-    public static final float[] PAUSE_RETRY = {350f, 276f, 610f, 328f};
-    public static final float[] PAUSE_TITLE = {350f, 340f, 610f, 392f};
+    public static final float[] PAUSE_RESUME = {350f, 190f, 610f, 238f};
+    public static final float[] PAUSE_RETRY = {350f, 248f, 610f, 296f};
+    public static final float[] PAUSE_SAVE = {350f, 306f, 610f, 354f};
+    public static final float[] PAUSE_TITLE = {350f, 364f, 610f, 412f};
 
     public static void draw(Canvas c, Draw d, BattleWorld w, TouchInput in,
                             boolean aiDebug, boolean paused) {
@@ -535,9 +536,10 @@ public final class BattleRenderer {
 
     private static void drawPause(Canvas c, Draw d) {
         d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xCC050302);
-        d.text(c, "일시정지", 480f, 168f, 30f, Theme.TEXT, Draw.CENTER, true);
+        d.text(c, "일시정지", 480f, 160f, 30f, Theme.TEXT, Draw.CENTER, true);
         menuButton(c, d, PAUSE_RESUME, "계속하기", true);
         menuButton(c, d, PAUSE_RETRY, "이 전투 다시 시작", false);
+        menuButton(c, d, PAUSE_SAVE, "저장하기", false);
         menuButton(c, d, PAUSE_TITLE, "타이틀로 돌아가기", false);
     }
 
