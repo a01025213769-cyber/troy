@@ -13,6 +13,8 @@ import com.example.trojanprototype.data.record.BattleRecord;
 import com.example.trojanprototype.data.record.RecordRepository;
 import com.example.trojanprototype.ui.Backdrop;
 import com.example.trojanprototype.ui.BattleRenderer;
+import com.example.trojanprototype.ui.LottieFx;
+import com.example.trojanprototype.util.Haptics;
 import com.example.trojanprototype.ui.Screens;
 import com.example.trojanprototype.ui.Theme;
 import com.example.trojanprototype.util.Assets;
@@ -67,6 +69,10 @@ public class GameEngine {
 
     /** 전투 기록 데이터베이스 (Room) */
     private final RecordRepository records;
+    /** 진동 피드백 */
+    private final Haptics haptics;
+    /** Lottie 승리 연출 */
+    private final LottieFx fx;
 
     private final Assets assets;
     private final SoundManager sound;
@@ -117,6 +123,9 @@ public class GameEngine {
         this.sound = new SoundManager(ctx, assets);
         this.save = new SaveManager(ctx);
         this.records = new RecordRepository(ctx);
+        this.haptics = new Haptics(ctx);
+        this.world.setHaptics(haptics);
+        this.fx = new LottieFx(ctx, assets);
         this.cleared = save.cleared();
         refreshSlots();
         setScene(SCENE_TITLE);
@@ -382,6 +391,17 @@ public class GameEngine {
             sound.toggleSound();
             sound.play("sfx_select");
             toast(sound.isSoundOn() ? "소리를 켰습니다" : "소리를 껐습니다");
+            return;
+        }
+        if (input.consumeTapIn(Screens.TITLE_VIBRATE[0], Screens.TITLE_VIBRATE[1],
+                Screens.TITLE_VIBRATE[2], Screens.TITLE_VIBRATE[3])) {
+            sound.play("sfx_select");
+            if (!haptics.isAvailable()) {
+                toast("이 기기에는 진동 장치가 없습니다");
+            } else {
+                haptics.toggle();
+                toast(haptics.isOn() ? "진동을 켰습니다" : "진동을 껐습니다");
+            }
             return;
         }
         // 난이도 — 캐릭터 선택 화면을 없앴으므로 타이틀에서 고릅니다.
@@ -697,11 +717,11 @@ public class GameEngine {
         switch (scene) {
             case SCENE_TITLE:
                 Screens.drawTitle(c, d, assets, sceneTime, diffIndex, cleared, hasSave,
-                        sound.isSoundOn());
+                        sound.isSoundOn(), haptics.isOn(), haptics.isAvailable());
                 break;
             case SCENE_HOWTO:
                 Screens.drawTitle(c, d, assets, sceneTime, diffIndex, cleared, hasSave,
-                        sound.isSoundOn());
+                        sound.isSoundOn(), haptics.isOn(), haptics.isAvailable());
                 Screens.drawHowTo(c, d);
                 break;
             case SCENE_SLOTS:
@@ -721,7 +741,7 @@ public class GameEngine {
                 break;
             case SCENE_RESULT:
                 Screens.drawResult(c, d, world,
-                        stageIndex < GameData.STAGES.length - 1, sceneTime);
+                        stageIndex < GameData.STAGES.length - 1, sceneTime, fx);
                 break;
             case SCENE_FINALE:
                 Screens.drawFinale(c, d, sceneTime);
@@ -762,6 +782,7 @@ public class GameEngine {
         if (scene == SCENE_BATTLE) paused = true;
         input.clearAll();
         sound.onPause();
+        haptics.stop();
     }
 
     public void onResume() {

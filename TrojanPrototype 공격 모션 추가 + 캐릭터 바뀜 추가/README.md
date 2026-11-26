@@ -11,8 +11,13 @@
 |---|---|---|
 | **Room** (androidx, SQLite) | 전투가 끝날 때마다 기록(스테이지·난이도·승패·남은 체력·시간)을 DB 에 저장 → 타이틀 **전적** 화면에서 챕터별 승률·최고 기록, 최근 전투 7개를 SQL 로 조회. DB 작업은 백그라운드 스레드에서 처리 | `data/record/` |
 | **Gson** | 저장 슬롯을 JSON 한 덩어리로 직렬화해 SharedPreferences 에 저장. 예전 방식 저장은 처음 읽을 때 자동 변환 | `data/SaveManager.java` |
+| **Lottie** (Airbnb) | 전투 승리 시 결과 화면의 금빛 별 엠블럼 벡터 애니메이션 (등장 후 햇살이 계속 회전). SurfaceView 에 맞춰 `LottieDrawable` 을 Canvas 에 직접 그림 | `ui/LottieFx.java`, `res/raw/lottie_victory.json` |
 
 의존성은 `app/build.gradle` 의 `dependencies` 에 있습니다.
+
+| 기기 기능 | 쓰는 곳 | 위치 |
+|---|---|---|
+| **진동** (Vibrator / VibrationEffect) | 피격 세기에 따라 다른 진동 (막음 15ms · 맞음 30~55ms · 가드 브레이크 70ms), 필살기, 승리·패배 패턴. 타이틀 오른쪽 위에서 켜기/끄기 (설정 저장). `VIBRATE` 권한 사용 | `util/Haptics.java`, `battle/BattleWorld.java` |
 
 ---
 
@@ -47,6 +52,7 @@
 ```
 python tools/make_sounds.py        # 음원 다시 만들기   (numpy, scipy 필요)
 python tools/make_backdrops.py     # 배경 다시 만들기   (numpy, Pillow 필요)
+python tools/make_lottie.py        # 승리 연출 Lottie json 다시 만들기
 sh tools/balance_sim/run.sh        # GameData 숫자를 고친 뒤 승률 다시 재기 (Git Bash)
 ```
 

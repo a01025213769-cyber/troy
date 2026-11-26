@@ -46,6 +46,8 @@ public final class Screens {
     public static final float[] RECORDS_BACK = {60f, 474f, 200f, 518f};
     /** 타이틀 오른쪽 위 — 소리 켜기/끄기 */
     public static final float[] TITLE_SOUND = {790f, 12f, 920f, 46f};
+    /** 타이틀 오른쪽 위 — 진동 켜기/끄기 */
+    public static final float[] TITLE_VIBRATE = {650f, 12f, 780f, 46f};
 
     public static final float[] STORY_SKIP = {812f, 22f, 938f, 66f};
     public static final float[] STORY_SAVE = {676f, 22f, 802f, 66f};
@@ -98,7 +100,8 @@ public final class Screens {
     //  타이틀
     // ==================================================================
     public static void drawTitle(Canvas c, Draw d, Assets assets, float time, int diffIndex,
-                                 int cleared, boolean hasSave, boolean soundOn) {
+                                 int cleared, boolean hasSave, boolean soundOn,
+                                 boolean vibrationOn, boolean vibrationAvailable) {
         Backdrop.draw(c, d, Backdrop.NIGHT_GATE, time, 0f);
         // 왼쪽 메뉴 영역을 어둡게 눌러 글자가 또렷하게 보이게 합니다.
         for (int i = 0; i < 8; i++) {
@@ -127,6 +130,14 @@ public final class Screens {
         d.text(c, soundOn ? "♪  소리 켬" : "♪  소리 끔", (sb[0] + sb[2]) * 0.5f,
                 (sb[1] + sb[3]) * 0.5f + 6f, 15f, soundOn ? Theme.TEXT_GOLD : Theme.TEXT_DIM,
                 Draw.CENTER, true);
+
+        // ---- 진동 켜기/끄기 (진동 장치가 없는 기기에서는 "진동 없음")
+        float[] vb = TITLE_VIBRATE;
+        boolean vOn = vibrationAvailable && vibrationOn;
+        d.card(c, vb[0], vb[1], vb[2], vb[3], vOn);
+        d.text(c, !vibrationAvailable ? "진동 없음" : (vibrationOn ? "진동 켬" : "진동 끔"),
+                (vb[0] + vb[2]) * 0.5f, (vb[1] + vb[3]) * 0.5f + 6f, 15f,
+                vOn ? Theme.TEXT_GOLD : Theme.TEXT_DIM, Draw.CENTER, true);
 
         // ---- 로고 영역
         d.spaced(c, "트로이", 60f, 142f, 52f, Theme.TEXT, Draw.LEFT, true, 10f);
@@ -340,13 +351,19 @@ public final class Screens {
     // ==================================================================
     //  전투 결과 + 해설
     // ==================================================================
-    public static void drawResult(Canvas c, Draw d, BattleWorld w, boolean hasNext, float time) {
+    public static void drawResult(Canvas c, Draw d, BattleWorld w, boolean hasNext, float time,
+                                  LottieFx fx) {
         Backdrop.draw(c, d, w.stage == null ? 0 : w.stage.backdrop, time, 0f);
         d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xCC050302);
 
         boolean win = (w.result == BattleWorld.RESULT_WIN);
 
         d.panel(c, 90f, 56f, 870f, 398f, 0xEE0C0806);
+
+        // 승리 연출 (Lottie) — 패널 오른쪽 위 빈 곳에 금빛 별 엠블럼
+        if (win && fx != null) {
+            fx.drawVictory(c, 770f, 124f, 190f, time);
+        }
 
         d.text(c, w.stage.chapter + " · " + w.stage.place, 130f, 98f, 13f,
                 Theme.BRONZE_LIGHT, Draw.LEFT, true);

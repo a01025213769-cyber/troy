@@ -31,8 +31,10 @@ android {
 // ── 외부 라이브러리 ─────────────────────────────────────────
 //  Room : 전투 기록을 기기 안의 SQLite 데이터베이스에 저장 (전적 화면)
 //  Gson : 저장 슬롯을 JSON 으로 바꿔 SharedPreferences 에 저장
+//  Lottie : 승리 연출 벡터 애니메이션 (res/raw/lottie_victory.json)
 dependencies {
     implementation 'androidx.room:room-runtime:2.6.1'
     annotationProcessor 'androidx.room:room-compiler:2.6.1'
     implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'com.airbnb.android:lottie:6.4.1'
 }

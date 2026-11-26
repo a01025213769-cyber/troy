@@ -8,6 +8,7 @@ import com.example.trojanprototype.core.TouchInput;
 import com.example.trojanprototype.data.GameData;
 import com.example.trojanprototype.ui.Theme;
 import com.example.trojanprototype.util.Assets;
+import com.example.trojanprototype.util.Haptics;
 
 import java.util.Random;
 
@@ -116,7 +117,17 @@ public class BattleWorld {
     public float elapsed = 0f;
 
     private SoundManager sound;
+    /** 진동 — 플레이어가 맞거나 필살기를 쓸 때 (없으면 null) */
+    private Haptics haptics;
     private final Random rnd = new Random();
+
+    public void setHaptics(Haptics h) {
+        this.haptics = h;
+    }
+
+    private void vibrate(int ms, int amplitude) {
+        if (haptics != null) haptics.pulse(ms, amplitude);
+    }
 
     public BattleWorld() {
         for (int i = 0; i < MAX_EFFECTS; i++) effects[i] = new Effect();
@@ -440,6 +451,7 @@ public class BattleWorld {
             shake = 1.1f;
             spawnText(player.x, Theme.GROUND - 180f, player.ultimateMove.name, Theme.RAGE_FULL, 1.1f);
             playSfx("sfx_ultimate");
+            vibrate(90, 255);
             return;
         }
         if (pressDodge) {
@@ -541,6 +553,26 @@ public class BattleWorld {
         float shk = major ? 1f : 0f;
         // 소리도 같은 기준으로 — 병사끼리의 타격은 작게 깔아 전장 분위기만 냅니다.
         float vol = major ? 1f : 0.28f;
+
+        // 진동 — 내가 맞았을 때만 (막음 < 맞음 < 가드 브레이크), 내 강공격이 들어갔을 때 짧게
+        if (defender == player) {
+            switch (res) {
+                case Fighter.RESULT_GUARDED:
+                    vibrate(15, 70);
+                    break;
+                case Fighter.RESULT_GUARD_BREAK:
+                    vibrate(70, 255);
+                    break;
+                case Fighter.RESULT_HIT:
+                    vibrate(m.guardBreak || m.knockback > 250f ? 55 : 30,
+                            m.guardBreak ? 220 : 140);
+                    break;
+                default:
+                    break;
+            }
+        } else if (byPlayer && m.guardBreak && res != Fighter.RESULT_DODGED) {
+            vibrate(20, 110);
+        }
 
         switch (res) {
             case Fighter.RESULT_DODGED:
@@ -674,6 +706,7 @@ public class BattleWorld {
             celebrateTeam(0);
             spawnText(enemy.x, Theme.GROUND - 170f, "격파!", Theme.TEXT_GOLD, 1.2f);
             playSfx("sfx_win");
+            if (haptics != null) haptics.pattern(new long[]{0, 40, 70, 40, 70, 110});
             return;
         }
         if (!player.isAlive()) {
@@ -681,6 +714,7 @@ public class BattleWorld {
             endPhase();
             celebrateTeam(1);
             playSfx("sfx_lose");
+            vibrate(220, 200);
             return;
         }
         if (timeLeft <= 0f) {

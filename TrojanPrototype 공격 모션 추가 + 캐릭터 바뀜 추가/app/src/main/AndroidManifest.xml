@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- 전투 중 피격 진동 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
         android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
         android:label="트로이 전쟁"
