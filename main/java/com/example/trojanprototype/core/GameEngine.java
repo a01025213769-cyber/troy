@@ -5,11 +5,16 @@ import android.graphics.Canvas;
 
 import com.example.trojanprototype.audio.SoundManager;
 import com.example.trojanprototype.battle.BattleWorld;
+import com.example.trojanprototype.battle.PadInput;
 import com.example.trojanprototype.data.ChapterData;
 import com.example.trojanprototype.data.GameData;
 import com.example.trojanprototype.data.SaveManager;
 import com.example.trojanprototype.data.StoryData;
+import com.example.trojanprototype.net.LanDiscovery;
+import com.example.trojanprototype.net.NetLink;
+import com.example.trojanprototype.net.Proto;
 import com.example.trojanprototype.ui.BattleRenderer;
+import com.example.trojanprototype.ui.MiniScreens;
 import com.example.trojanprototype.ui.Screens;
 import com.example.trojanprototype.ui.Theme;
 import com.example.trojanprototype.util.Assets;
@@ -60,6 +65,12 @@ public class GameEngine {
     public static final int SCENE_FINALE = 5;
     public static final int SCENE_SLOTS = 6;
     public static final int SCENE_CHAPTERS = 7;
+    // 미니게임 (2인 대전)
+    public static final int SCENE_MINI_HUB = 8;
+    public static final int SCENE_MINI_JOIN = 9;
+    public static final int SCENE_MINI_ROOM = 10;
+    public static final int SCENE_MINI_BATTLE = 11;
+    public static final int SCENE_MINI_RESULT = 12;
 
     private final Assets assets;
     private final SoundManager sound;
@@ -103,8 +114,18 @@ public class GameEngine {
     private String toast = null;
     private float toastTime = 0f;
 
+    // ---- 미니게임 (2인 대전) 상태 ----
+    private final WifiHelper wifi;
+    private VersusSession vs = null;
+    private String joinIp = "";
+    private String myIp = "";
+    private float exitArm = 0f;
+    private boolean endSounded = false;
+    private final PadInput guestPad = new PadInput();
+
     public GameEngine(Context ctx, TouchInput input) {
         this.input = input;
+        this.wifi = new WifiHelper(ctx);
         this.assets = new Assets(ctx);
         this.sound = new SoundManager(ctx, assets);
         this.save = new SaveManager(ctx);
@@ -128,7 +149,7 @@ public class GameEngine {
         scene = s;
         sceneTime = 0f;
         paused = false;
-        input.setBattleMode(s == SCENE_BATTLE);
+        input.setBattleMode(s == SCENE_BATTLE || s == SCENE_MINI_BATTLE);
         updateBgm();
     }
 
@@ -136,6 +157,9 @@ public class GameEngine {
         switch (scene) {
             case SCENE_BATTLE:
                 sound.playBgm(world.stage != null && world.stage.boss ? "bgm_boss" : "bgm_battle");
+                break;
+            case SCENE_MINI_BATTLE:
+                sound.playBgm("bgm_battle");
                 break;
             case SCENE_STORY:
             case SCENE_RESULT:
@@ -353,6 +377,11 @@ public class GameEngine {
         switch (scene) {
             case SCENE_SLOTS: updateSlots(); break;
             case SCENE_CHAPTERS: updateChapters(); break;
+            case SCENE_MINI_HUB: updateMiniHub(); break;
+            case SCENE_MINI_JOIN: updateMiniJoin(dt); break;
+            case SCENE_MINI_ROOM: updateMiniRoom(dt); break;
+            case SCENE_MINI_BATTLE: updateMiniBattle(dt); break;
+            case SCENE_MINI_RESULT: updateMiniResult(dt); break;
             case SCENE_TITLE: updateTitle(); break;
             case SCENE_HOWTO: updateHowTo(); break;
             case SCENE_STORY: updateStory(dt); break;
@@ -374,6 +403,12 @@ public class GameEngine {
                 sound.play("sfx_select");
                 return;
             }
+        }
+        if (input.consumeTapIn(Screens.TITLE_MINIGAME[0], Screens.TITLE_MINIGAME[1],
+                Screens.TITLE_MINIGAME[2], Screens.TITLE_MINIGAME[3])) {
+            sound.play("sfx_select");
+            setScene(SCENE_MINI_HUB);
+            return;
         }
         if (input.consumeTapIn(Screens.TITLE_START[0], Screens.TITLE_START[1],
                 Screens.TITLE_START[2], Screens.TITLE_START[3])) {
@@ -630,6 +665,340 @@ public class GameEngine {
         input.consumeTap();
     }
 
+
+    // ==================================================================
+    //  미니게임 — 2인 대전 (Wi-Fi)
+    //
+    //   허브 ─┬─ 방 만들기 ─► 방(방장) ──[전투 시작]──► 전투 ─► 결과 ─┐
+    //         │                 ▲  모드·캐릭터                         │ 한 번 더
+    //         └─ 방 참가하기 ─► 방 찾기 ─► 방(참가자) ──[준비]─────────┘
+    //
+    //  계산은 방장 기기에서만 합니다. 참가자 기기는 자기 조작을 보내고 장면을 받아 그립니다.
+    //  (자세한 구조: net/VersusSync, core/VersusSession)
+    // ==================================================================
+    private static String deviceName() {
+        try {
+            String m = android.os.Build.MODEL;
+            return m == null ? "플레이어" : m;
+        } catch (Throwable t) {
+            return "플레이어";
+        }
+    }
+
+    private void closeSession() {
+        if (vs != null) {
+            vs.close();
+            vs = null;
+        }
+        wifi.releaseMulticast();
+    }
+
+    /** 미니게임 허브로 (연결은 모두 닫습니다) */
+    private void leaveMini() {
+        closeSession();
+        setScene(SCENE_MINI_HUB);
+    }
+
+    private void updateMiniHub() {
+        if (input.consumeTapIn(MiniScreens.HUB_BACK[0], MiniScreens.HUB_BACK[1],
+                MiniScreens.HUB_BACK[2], MiniScreens.HUB_BACK[3])) {
+            sound.play("sfx_select");
+            setScene(SCENE_TITLE);
+            return;
+        }
+        if (input.consumeTapIn(MiniScreens.HUB_HOST[0], MiniScreens.HUB_HOST[1],
+                MiniScreens.HUB_HOST[2], MiniScreens.HUB_HOST[3])) {
+            sound.play("sfx_select");
+            closeSession();
+            vs = new VersusSession(true, deviceName());
+            vs.room.hostChar = 0;
+            vs.openRoom();
+            myIp = LanDiscovery.localIp();
+            setScene(SCENE_MINI_ROOM);
+            return;
+        }
+        if (input.consumeTapIn(MiniScreens.HUB_JOIN[0], MiniScreens.HUB_JOIN[1],
+                MiniScreens.HUB_JOIN[2], MiniScreens.HUB_JOIN[3])) {
+            sound.play("sfx_select");
+            startGuestSearch();
+            setScene(SCENE_MINI_JOIN);
+            return;
+        }
+        input.consumeTap();
+    }
+
+    private void startGuestSearch() {
+        closeSession();
+        vs = new VersusSession(false, deviceName());
+        wifi.acquireMulticast();
+        vs.startFinder();
+    }
+
+    /** "192.168.0.12" 처럼 생긴 주소인지 */
+    static boolean validIp(String s) {
+        String[] p = s.split("\\.", -1);
+        if (p.length != 4) return false;
+        for (int i = 0; i < 4; i++) {
+            if (p[i].length() < 1 || p[i].length() > 3) return false;
+            for (int k = 0; k < p[i].length(); k++) {
+                if (p[i].charAt(k) < '0' || p[i].charAt(k) > '9') return false;
+            }
+            if (Integer.parseInt(p[i]) > 255) return false;
+        }
+        return true;
+    }
+
+    private void connectTo(String ip, int port) {
+        if (vs == null) return;
+        sound.play("sfx_select");
+        vs.join(ip, port);
+    }
+
+    private void updateMiniJoin(float dt) {
+        if (vs == null) {
+            setScene(SCENE_MINI_HUB);
+            return;
+        }
+        int ev = vs.pump(dt, null);
+        if (ev == VersusSession.EV_LEFT || ev == VersusSession.EV_REJECTED) {
+            toast(vs.message.length() > 0 ? vs.message : "연결하지 못했습니다");
+            startGuestSearch();         // 처음 상태로 돌려 다시 시도할 수 있게
+            return;
+        }
+        if (vs.joined()) {
+            vs.stopFinder();
+            wifi.releaseMulticast();
+            setScene(SCENE_MINI_ROOM);
+            return;
+        }
+
+        if (input.consumeTapIn(MiniScreens.JOIN_BACK[0], MiniScreens.JOIN_BACK[1],
+                MiniScreens.JOIN_BACK[2], MiniScreens.JOIN_BACK[3])) {
+            sound.play("sfx_select");
+            leaveMini();
+            return;
+        }
+        if (vs.connecting()) {          // 접속 중에는 다른 입력을 받지 않습니다
+            input.consumeTap();
+            return;
+        }
+
+        java.util.List<LanDiscovery.Room> rooms = vs.foundRooms();
+        for (int i = 0; i < rooms.size() && i < MiniScreens.JOIN_ROOMS.length; i++) {
+            float[] r = MiniScreens.JOIN_ROOMS[i];
+            if (input.consumeTapIn(r[0], r[1], r[2], r[3])) {
+                LanDiscovery.Room rm = rooms.get(i);
+                if (rm.full) toast("이미 가득 찬 방입니다");
+                else connectTo(rm.ip, rm.port);
+                return;
+            }
+        }
+        for (int i = 0; i < MiniScreens.KEY_LABELS.length; i++) {
+            float[] k = MiniScreens.joinKey(i);
+            if (input.consumeTapIn(k[0], k[1], k[2], k[3])) {
+                String key = MiniScreens.KEY_LABELS[i];
+                if (key.equals("<")) {
+                    if (joinIp.length() > 0) joinIp = joinIp.substring(0, joinIp.length() - 1);
+                } else if (joinIp.length() < 15) {
+                    joinIp += key;
+                }
+                return;
+            }
+        }
+        if (input.consumeTapIn(MiniScreens.JOIN_GO[0], MiniScreens.JOIN_GO[1],
+                MiniScreens.JOIN_GO[2], MiniScreens.JOIN_GO[3])) {
+            if (validIp(joinIp)) connectTo(joinIp, NetLink.PORT);
+            else toast("주소 형식이 올바르지 않습니다 (예: 192.168.0.12)");
+            return;
+        }
+        input.consumeTap();
+    }
+
+    private void updateMiniRoom(float dt) {
+        if (vs == null) {
+            setScene(SCENE_MINI_HUB);
+            return;
+        }
+        boolean hadGuest = vs.hadGuest;
+        int ev = vs.pump(dt, null);
+        switch (ev) {
+            case VersusSession.EV_JOINED:
+                toast("참가자가 입장했습니다");
+                sound.play("sfx_select");
+                break;
+            case VersusSession.EV_LEFT:
+            case VersusSession.EV_REJECTED:
+                toast(vs.message.length() > 0 ? vs.message : "연결이 끊어졌습니다");
+                if (vs.host && hadGuest) {
+                    vs.reopenRoom();        // 방은 그대로 두고 새 참가자를 기다립니다
+                } else {
+                    leaveMini();
+                }
+                return;
+            case VersusSession.EV_START:
+                startVersusBattle();
+                return;
+            default:
+                break;
+        }
+
+        if (input.consumeTapIn(MiniScreens.ROOM_BACK[0], MiniScreens.ROOM_BACK[1],
+                MiniScreens.ROOM_BACK[2], MiniScreens.ROOM_BACK[3])) {
+            sound.play("sfx_select");
+            leaveMini();
+            return;
+        }
+
+        // 모드 선택 — 방장만 (참가자의 탭은 무시)
+        for (int i = 0; i < 2; i++) {
+            float[] r = MiniScreens.ROOM_MODE[i];
+            if (input.consumeTapIn(r[0], r[1], r[2], r[3])) {
+                if (vs.host) {
+                    if (vs.room.mode != i) {
+                        sound.play("sfx_select");
+                        vs.setMode(i);
+                    }
+                } else {
+                    toast("모드는 방장만 고를 수 있습니다");
+                }
+                return;
+            }
+        }
+
+        // 내 캐릭터 고르기 (◀ ▶)
+        float[] mine = vs.host ? MiniScreens.ROOM_P1 : MiniScreens.ROOM_P2;
+        int n = GameData.VERSUS_ROSTER.length;
+        for (int dir = -1; dir <= 1; dir += 2) {
+            float[] a = dir < 0 ? MiniScreens.arrowLeft(mine) : MiniScreens.arrowRight(mine);
+            if (input.consumeTapIn(a[0], a[1], a[2], a[3])) {
+                sound.play("sfx_select");
+                if (vs.host) {
+                    vs.setHostChar(vs.room.hostChar + dir);
+                } else {
+                    vs.myChar = ((vs.myChar + dir) % n + n) % n;
+                    vs.myReady = false;             // 캐릭터를 바꾸면 준비가 풀립니다
+                    vs.sendGuestState();
+                }
+                return;
+            }
+        }
+
+        if (input.consumeTapIn(MiniScreens.ROOM_ACTION[0], MiniScreens.ROOM_ACTION[1],
+                MiniScreens.ROOM_ACTION[2], MiniScreens.ROOM_ACTION[3])) {
+            if (vs.host) {
+                if (vs.canStart()) {
+                    sound.play("sfx_select");
+                    vs.sendStart();
+                    startVersusBattle();
+                } else if (!vs.guestPresent()) {
+                    toast("참가자가 아직 없습니다");
+                } else {
+                    toast("참가자가 아직 준비하지 않았습니다");
+                }
+            } else {
+                sound.play("sfx_select");
+                vs.myReady = !vs.myReady;
+                vs.sendGuestState();
+            }
+            return;
+        }
+        input.consumeTap();
+    }
+
+    private void startVersusBattle() {
+        boolean host = vs.host;
+        int mode = host ? vs.room.mode : vs.startMode;
+        int p1 = host ? vs.room.hostChar : vs.startHostChar;
+        int p2 = host ? vs.room.guestChar : vs.startGuestChar;
+        world.startVersus(p1, p2, mode == Proto.MODE_ARMY, assets, sound, !host, host ? 0 : 1);
+        vs.resetBattleState();
+        guestPad.clear();
+        exitArm = 0f;
+        endSounded = false;
+        setScene(SCENE_MINI_BATTLE);
+    }
+
+    /** 전투 중 나가기 — 실수로 누르지 않도록 두 번 눌러야 나갑니다. */
+    private void requestMiniExit() {
+        if (exitArm > 0f) {
+            leaveMini();
+            return;
+        }
+        exitArm = 2.2f;
+        toast("한 번 더 누르면 대전에서 나갑니다");
+    }
+
+    private void updateMiniBattle(float dt) {
+        if (vs == null) {
+            setScene(SCENE_MINI_HUB);
+            return;
+        }
+        int ev = vs.pump(dt, world);
+        if (ev == VersusSession.EV_LEFT) {
+            toast(vs.message.length() > 0 ? vs.message : "연결이 끊어졌습니다");
+            leaveMini();
+            return;
+        }
+        if (input.consumePress(TouchInput.BTN_PAUSE)) requestMiniExit();
+        input.consumePress(TouchInput.BTN_AI);
+        if (exitArm > 0f) exitArm -= dt;
+
+        if (vs.host) {
+            world.pad0.readFrom(input);
+            world.update(dt, input);
+            vs.sendSnapshot(dt, world, world.phase == BattleWorld.PHASE_END);
+        } else {
+            guestPad.readFrom(input);
+            vs.sendInput(dt, guestPad);
+            world.update(dt, input);
+        }
+
+        if (world.phase == BattleWorld.PHASE_END && !endSounded) {
+            endSounded = true;
+            int r = world.localResult();
+            if (r == BattleWorld.RESULT_WIN) sound.play("sfx_win");
+            else if (r == BattleWorld.RESULT_LOSE) sound.play("sfx_lose");
+        }
+        if (world.finished) setScene(SCENE_MINI_RESULT);
+    }
+
+    private void updateMiniResult(float dt) {
+        if (vs == null) {
+            setScene(SCENE_MINI_HUB);
+            return;
+        }
+        boolean hadGuest = vs.hadGuest;
+        int ev = vs.pump(dt, null);
+        if (ev == VersusSession.EV_BACK) {
+            setScene(SCENE_MINI_ROOM);
+            return;
+        }
+        if (ev == VersusSession.EV_LEFT) {
+            toast(vs.message.length() > 0 ? vs.message : "상대가 나갔습니다");
+            if (vs.host && hadGuest) {
+                vs.reopenRoom();
+                setScene(SCENE_MINI_ROOM);
+            } else {
+                leaveMini();
+            }
+            return;
+        }
+        if (input.consumeTapIn(MiniScreens.RES_EXIT[0], MiniScreens.RES_EXIT[1],
+                MiniScreens.RES_EXIT[2], MiniScreens.RES_EXIT[3])) {
+            sound.play("sfx_select");
+            leaveMini();
+            return;
+        }
+        if (vs.host && input.consumeTapIn(MiniScreens.RES_PRIMARY[0], MiniScreens.RES_PRIMARY[1],
+                MiniScreens.RES_PRIMARY[2], MiniScreens.RES_PRIMARY[3])) {
+            sound.play("sfx_select");
+            vs.sendBack();
+            setScene(SCENE_MINI_ROOM);
+            return;
+        }
+        input.consumeTap();
+    }
+
     private void updateFinale() {
         if (sceneTime > 4.2f && input.consumeTap()) {
             backToTitle();
@@ -669,6 +1038,24 @@ public class GameEngine {
             case SCENE_FINALE:
                 Screens.drawFinale(c, d, sceneTime);
                 break;
+            case SCENE_MINI_HUB:
+                MiniScreens.drawHub(c, d, sceneTime);
+                break;
+            case SCENE_MINI_JOIN:
+                MiniScreens.drawJoin(c, d, sceneTime,
+                        vs == null ? new java.util.ArrayList<LanDiscovery.Room>() : vs.foundRooms(),
+                        vs != null && vs.finderFailed(), joinIp, vs != null && vs.connecting());
+                break;
+            case SCENE_MINI_ROOM:
+                if (vs != null) MiniScreens.drawRoom(c, d, assets, sceneTime, vs, myIp);
+                break;
+            case SCENE_MINI_BATTLE:
+                BattleRenderer.draw(c, d, world, input, false, false);
+                break;
+            case SCENE_MINI_RESULT:
+                MiniScreens.drawResult(c, d, world, sceneTime, vs != null && vs.host,
+                        vs != null && vs.isLinkAlive());
+                break;
             default:
                 d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Theme.BG_DEEP);
                 break;
@@ -694,6 +1081,17 @@ public class GameEngine {
             case SCENE_CHAPTERS:
                 setScene(SCENE_TITLE);
                 return true;
+            case SCENE_MINI_HUB:
+                setScene(SCENE_TITLE);
+                return true;
+            case SCENE_MINI_JOIN:
+            case SCENE_MINI_ROOM:
+            case SCENE_MINI_RESULT:
+                leaveMini();
+                return true;
+            case SCENE_MINI_BATTLE:
+                requestMiniExit();
+                return true;
             default:
                 backToTitle();
                 return true;
@@ -712,6 +1110,7 @@ public class GameEngine {
     }
 
     public void release() {
+        closeSession();
         sound.release();
         assets.clear();
     }

@@ -29,9 +29,15 @@ public final class VirtualPad {
     private VirtualPad() {}
 
     public static void draw(Canvas c, Draw d, TouchInput in, Fighter player, boolean aiDebugOn) {
+        draw(c, d, in, player, aiDebugOn, false);
+    }
+
+    /** versus = 2인 대전: AI 표시 버튼은 숨기고, 가운데 버튼은 "나가기" 가 됩니다. */
+    public static void draw(Canvas c, Draw d, TouchInput in, Fighter player, boolean aiDebugOn,
+                            boolean versus) {
         drawMoveButtons(c, d, in);
         drawActionButtons(c, d, in, player);
-        drawSmallButtons(c, d, in, aiDebugOn);
+        drawSmallButtons(c, d, in, aiDebugOn, versus);
     }
 
     // ------------------------------------------------------------------
@@ -109,10 +115,18 @@ public final class VirtualPad {
     }
 
     // ------------------------------------------------------------------
-    private static void drawSmallButtons(Canvas c, Draw d, TouchInput in, boolean aiDebugOn) {
-        // 일시정지
+    private static void drawSmallButtons(Canvas c, Draw d, TouchInput in, boolean aiDebugOn,
+                                          boolean versus) {
+        // 일시정지 (2인 대전에서는 "나가기" — 상대가 있으니 멈출 수 없습니다)
         d.circle(c, Theme.BTN_PAUSE_X, Theme.BTN_PAUSE_Y, Theme.BTN_SMALL_R, 0xCC120D0A);
         d.circleStroke(c, Theme.BTN_PAUSE_X, Theme.BTN_PAUSE_Y, Theme.BTN_SMALL_R, 1.6f, 0xAAB8914F);
+        if (versus) {
+            d.line(c, Theme.BTN_PAUSE_X - 7f, Theme.BTN_PAUSE_Y - 7f,
+                    Theme.BTN_PAUSE_X + 7f, Theme.BTN_PAUSE_Y + 7f, 3f, Theme.TEXT);
+            d.line(c, Theme.BTN_PAUSE_X - 7f, Theme.BTN_PAUSE_Y + 7f,
+                    Theme.BTN_PAUSE_X + 7f, Theme.BTN_PAUSE_Y - 7f, 3f, Theme.TEXT);
+            return;
+        }
         d.rect(c, Theme.BTN_PAUSE_X - 6f, Theme.BTN_PAUSE_Y - 8f,
                 Theme.BTN_PAUSE_X - 2f, Theme.BTN_PAUSE_Y + 8f, Theme.TEXT);
         d.rect(c, Theme.BTN_PAUSE_X + 2f, Theme.BTN_PAUSE_Y - 8f,

@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- 미니게임(2인 대전): 같은 Wi-Fi 의 다른 기기와 소켓으로 연결합니다 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- 방 목록(UDP 방송)을 받을 때만 잠깐 사용 -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
     <application
         android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
         android:label="트로이 전쟁"

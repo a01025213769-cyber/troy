@@ -430,6 +430,31 @@ public final class GameData {
     private static final Move CMDR_HEAVY =
             new Move("지휘관의 일격", 0.34f, 0.13f, 0.42f, 146f, 92f, 132f, 17f, 300f, 160f, 1, 0f, true);
 
+    // ------------------------------------------------------------
+    //  헥토르 — 미니게임(2인 대전)에서만 고를 수 있는 세 번째 캐릭터.
+    //  스토리에서는 적(보스)이지만, 대전에서는 균형형 검사로 쓸 수 있습니다.
+    // ------------------------------------------------------------
+    public static final CharacterDef HECTOR = new CharacterDef(
+            "헥토르", "트로이의 방패", "hector_sprite",
+            112, 1.00f, 184f, 340f, 156f, 0xFFB7B0A2,
+            new String[]{"균형 잡힌 검술", "단단한 체력", "묵직한 강공격"},
+            HECTOR_LIGHT, HECTOR_HEAVY,
+            new Move("성문의 일격", 0.30f, 0.46f, 0.42f, 142f, 110f, 140f, 12f, 360f, 280f, 4, 0f, true)
+    );
+
+    /** 미니게임 2인 대전에서 고를 수 있는 캐릭터 (번호가 곧 네트워크로 주고받는 값입니다) */
+    public static final CharacterDef[] VERSUS_ROSTER = {ACHILLES, ODYSSEUS, HECTOR};
+
+    /** 미니게임 — 1대1 격투 대전 / 다대다 전투(군대전) 무대 */
+    public static final StageDef VERSUS_DUEL = new StageDef(
+            "MINI GAME", "1대1 격투 대전", ACHILLES,
+            "상대", "", "hector_sprite", 2, 100, 1f, 180f, 156f, false, 90,
+            HECTOR_LIGHT, HECTOR_HEAVY, "", "");
+    public static final StageDef VERSUS_ARMY = new StageDef(
+            "MINI GAME", "다대다 전투", ACHILLES,
+            "상대 대장", "", "troy_sprite", 0, 100, 1f, 180f, 172f, false, true, 120,
+            CMDR_LIGHT, CMDR_HEAVY, "", "");
+
     public static final StageDef[] STAGES = {
             // CHAPTER 1·2 는 군대 전투입니다. (enemy* = 트로이 대장)
             new StageDef(

@@ -76,9 +76,9 @@ public final class BattleRenderer {
 
         // ---------- HUD ----------
         drawHud(c, d, w);
-        VirtualPad.draw(c, d, in, w.player, aiDebug);
+        VirtualPad.draw(c, d, in, w.localFighter(), aiDebug, w.versus);
 
-        if (aiDebug) {
+        if (aiDebug && !w.versus) {
             AiDebugView.drawHitboxes(c, d, w);
             AiDebugView.draw(c, d, w);
         }
@@ -118,7 +118,13 @@ public final class BattleRenderer {
                     cx - bw * 0.5f + bw * Draw.clamp(f.hpRatio(), 0f, 1f), topY + 4f, 3f,
                     mine ? Theme.HP_PLAYER : Theme.HP_ENEMY);
             d.roundStroke(c, cx - bw * 0.5f, topY - 6f, cx + bw * 0.5f, topY + 4f, 3f, 1f, 0x88FFFFFF);
-            d.text(c, mine ? "대장 (나)" : "적 대장", cx, topY - 12f, 12f,
+            String label = mine ? "대장 (나)" : "적 대장";
+            if (w.versus) {
+                boolean me = (f == w.localFighter());
+                label = (f.team == 0 ? "P1" : "P2") + (me ? " (나)" : "");
+                mine = me;
+            }
+            d.text(c, label, cx, topY - 12f, 12f,
                     mine ? Theme.TEXT_GOLD : 0xFFFF9C6B, Draw.CENTER, true);
             d.triangle(c, cx, topY - 24f + 0f, cx - 6f, topY - 34f, cx + 6f, topY - 34f, col);
             return;
@@ -389,8 +395,9 @@ public final class BattleRenderer {
         float top = Theme.HUD_TOP;
 
         // ---- 플레이어 (왼쪽)
-        d.text(c, w.player.name, 38f, top + 18f, 17f, Theme.TEXT, Draw.LEFT, true);
-        d.text(c, w.player.title, 38f + d.textWidth(w.player.name, 17f, true) + 10f, top + 18f,
+        String pn = w.versus ? "P1 · " + w.player.name : w.player.name;
+        d.text(c, pn, 38f, top + 18f, 17f, Theme.TEXT, Draw.LEFT, true);
+        d.text(c, w.player.title, 38f + d.textWidth(pn, 17f, true) + 10f, top + 18f,
                 11f, Theme.TEXT_DIM, Draw.LEFT, false);
 
         float hpT = top + 26f;
@@ -423,9 +430,10 @@ public final class BattleRenderer {
         }
 
         // ---- 적 (오른쪽)
-        d.text(c, w.enemy.name, Theme.VW - 38f, top + 18f, 17f, Theme.TEXT, Draw.RIGHT, true);
+        String en = w.versus ? w.enemy.name + " · P2" : w.enemy.name;
+        d.text(c, en, Theme.VW - 38f, top + 18f, 17f, Theme.TEXT, Draw.RIGHT, true);
         d.text(c, w.enemy.title,
-                Theme.VW - 38f - d.textWidth(w.enemy.name, 17f, true) - 10f, top + 18f,
+                Theme.VW - 38f - d.textWidth(en, 17f, true) - 10f, top + 18f,
                 11f, Theme.TEXT_DIM, Draw.RIGHT, false);
 
         float eL = Theme.VW - 38f - Theme.HP_BAR_W;
@@ -439,8 +447,21 @@ public final class BattleRenderer {
         d.roundStroke(c, eL, hpT, eL + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H, 5f, 1.4f, 0xCCB8914F);
         d.text(c, w.enemy.hp + " / " + w.enemy.maxHp, eL + 6f, hpT + 15f, 11f,
                 0xDDFFFFFF, Draw.LEFT, true);
+        if (w.versus) {
+            // 2인 대전은 상대의 분노 게이지도 보입니다 (필살기를 조심하세요)
+            float rgE = hpT + Theme.HP_BAR_H + 5f;
+            float re = Draw.clamp(w.enemy.rage / GameData.RAGE_MAX, 0f, 1f);
+            d.gauge(c, Theme.VW - 38f - 200f, rgE, Theme.VW - 38f, rgE + 11f, re, Theme.HP_BACK,
+                    w.enemy.ultimateReady() ? Theme.RAGE_FULL : Theme.RAGE, 4f);
+            if (w.enemy.ultimateReady()) {
+                d.text(c, "필살기 준비!", Theme.VW - 248f, rgE + 10f, 11f, Theme.RAGE_FULL, Draw.RIGHT, true);
+            }
+        }
         if (w.armyMode) {
-            d.text(c, "적 대장 · BOSS", Theme.VW - 38f, rgT + 10f, 12f, 0xFFFF9C6B, Draw.RIGHT, true);
+            if (!w.versus) {
+                d.text(c, "적 대장 · BOSS", Theme.VW - 38f, rgT + 10f, 12f,
+                        0xFFFF9C6B, Draw.RIGHT, true);
+            }
             drawArmyStatus(c, d, w, 1, Theme.VW - 38f, rgT + 34f, true);
         } else if (w.stage != null && w.stage.boss) {
             d.text(c, "BOSS", Theme.VW - 38f, rgT + 10f, 12f, 0xFFFF9C6B, Draw.RIGHT, true);
@@ -508,8 +529,9 @@ public final class BattleRenderer {
             if (w.armyMode) {
                 d.textOutlined(c, GameData.GREEK_ARMY_NAME + "   VS   " + GameData.TROY_ARMY_NAME,
                         480f + slide, 300f, 22f, Theme.BRONZE_LIGHT, Draw.CENTER, true);
-                d.text(c, "돌격군 3 · 궁수 2  —  적 대장을 먼저 쓰러뜨리면 승리!", 480f, 330f, 14f,
-                        Theme.TEXT_GOLD, Draw.CENTER, true);
+                d.text(c, w.versus ? "돌격군 3 · 궁수 2  —  상대 대장을 먼저 쓰러뜨리면 승리!"
+                                : "돌격군 3 · 궁수 2  —  적 대장을 먼저 쓰러뜨리면 승리!",
+                        480f, 330f, 14f, Theme.TEXT_GOLD, Draw.CENTER, true);
             } else {
                 d.textOutlined(c, w.player.name + "   VS   " + w.enemy.name, 480f + slide, 300f, 20f,
                         Theme.BRONZE_LIGHT, Draw.CENTER, true);
@@ -528,9 +550,11 @@ public final class BattleRenderer {
     private static void drawOutro(Canvas c, Draw d, BattleWorld w) {
         float a = Draw.smooth(Draw.clamp(w.phaseTime / 0.5f, 0f, 1f));
         d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Draw.withAlpha(0xFF050302, (int) (120 * a)));
-        boolean win = (w.result == BattleWorld.RESULT_WIN);
-        d.textOutlined(c, win ? "승리" : "패배", 480f, 268f, 62f,
-                Draw.withAlpha(win ? Theme.TEXT_GOLD : 0xFFE08878, (int) (255 * a)),
+        int res = w.localResult();
+        boolean win = (res == BattleWorld.RESULT_WIN);
+        boolean draw = (res == BattleWorld.RESULT_DRAW);
+        d.textOutlined(c, draw ? "무승부" : (win ? "승리" : "패배"), 480f, 268f, 62f,
+                Draw.withAlpha(draw ? Theme.TEXT : (win ? Theme.TEXT_GOLD : 0xFFE08878), (int) (255 * a)),
                 Draw.CENTER, true);
     }
 

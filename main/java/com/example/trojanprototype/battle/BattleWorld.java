@@ -42,6 +42,8 @@ public class BattleWorld {
     public static final int RESULT_NONE = 0;
     public static final int RESULT_WIN = 1;
     public static final int RESULT_LOSE = 2;
+    /** 2인 대전에서 제한 시간이 끝났을 때 체력 비율이 같으면 */
+    public static final int RESULT_DRAW = 3;
 
     // ------------------------------------------------ 이펙트
     public static final int FX_SPARK = 0;
@@ -115,6 +117,29 @@ public class BattleWorld {
     public String tip = "";
     public float elapsed = 0f;
 
+    // ------------------------------------------------ 2인 대전 (미니게임)
+    /** true 면 1대1/다대다 2인 대전. player = 방장(P1, 왼쪽), enemy = 참가자(P2, 오른쪽) */
+    public boolean versus = false;
+    /** true 면 계산하지 않고 방장이 보내 준 장면만 그리는 쪽(참가자 기기) */
+    public boolean mirror = false;
+    /** 이 기기를 쥔 사람의 자리 (0 = P1 방장, 1 = P2 참가자) */
+    public int localSide = 0;
+    /** 방장의 조작 (P1) / 참가자의 조작 (P2, 네트워크로 건너옵니다) */
+    public final PadInput pad0 = new PadInput();
+    public final PadInput pad1 = new PadInput();
+    private final PadInput soloPad = new PadInput();
+
+    /** 이펙트 · 효과음 기록 — 방장이 참가자에게 보내려고 모아 둡니다. */
+    public boolean recordEvents = false;
+    public static final class FxEvent {
+        public int type;
+        public float x, y, vx, vy, life, size;
+        public int color;
+        public String text;
+    }
+    public final java.util.ArrayList<FxEvent> fxLog = new java.util.ArrayList<FxEvent>();
+    public final java.util.ArrayList<Integer> sfxLog = new java.util.ArrayList<Integer>();
+
     private SoundManager sound;
     private final Random rnd = new Random();
 
@@ -159,6 +184,12 @@ public class BattleWorld {
         this.difficulty = diff;
         this.sound = snd;
         this.tip = tipText;
+        this.versus = false;
+        this.mirror = false;
+        this.recordEvents = false;
+        this.localSide = 0;
+        fxLog.clear();
+        sfxLog.clear();
 
         // --- 플레이어 설정
         player.name = ch.name;
@@ -288,13 +319,95 @@ public class BattleWorld {
 
     /** 같은 스테이지를 다시 시작 */
     public void restart(Assets assets) {
+        if (versus) return;     // 2인 대전의 재대결은 방으로 돌아가서 다시 시작합니다.
         start(character, stage, difficulty, assets, sound, tip);
+    }
+
+    // ==================================================================
+    //  2인 대전 시작 (미니게임)
+    // ==================================================================
+    /**
+     * 방장 기기와 참가자 기기가 "똑같은 인자"로 이 함수를 불러 같은 편성을 만듭니다.
+     * 방장은 이후 직접 계산하고(mirror=false), 참가자는 받은 장면만 그립니다(mirror=true).
+     *
+     * @param p1Index 방장 캐릭터 (GameData.VERSUS_ROSTER 번호)
+     * @param p2Index 참가자 캐릭터
+     * @param army    true = 다대다 전투 모드 (대장 + 돌격군 3 + 궁수 2), false = 1대1
+     */
+    public void startVersus(int p1Index, int p2Index, boolean army, Assets assets,
+                            SoundManager snd, boolean asMirror, int side) {
+        GameData.CharacterDef a = GameData.VERSUS_ROSTER[clampIndex(p1Index)];
+        GameData.CharacterDef b = GameData.VERSUS_ROSTER[clampIndex(p2Index)];
+        GameData.StageDef st = army ? GameData.VERSUS_ARMY : GameData.VERSUS_DUEL;
+
+        start(a, st, GameData.DIFFICULTIES[1], assets, snd, "");
+
+        // --- P2 (오른쪽) : 플레이어와 똑같은 방식으로 캐릭터 능력치를 넣습니다.
+        enemy.name = b.name;
+        enemy.title = b.title;
+        enemy.sprites = assets.spriteSet(b.spriteName);
+        enemy.spriteHeight = b.spriteHeight;
+        enemy.accent = b.accent;
+        enemy.maxHp = army ? Math.round(b.maxHp * GameData.ARMY_PLAYER_HP_SCALE) : b.maxHp;
+        enemy.attackPower = b.attack;
+        enemy.moveSpeed = b.moveSpeed;
+        enemy.dodgeSpeed = b.dodgeSpeed;
+        enemy.damageTaken = 1f;
+        enemy.lightMove = b.light;
+        enemy.heavyMove = b.heavy;
+        enemy.ultimateMove = b.ultimate;
+        enemy.meleeLightMove = b.meleeLight;
+        enemy.meleeHeavyMove = b.meleeHeavy;
+        enemy.meleeRange = b.meleeRange;
+        enemy.usingMelee = false;
+        enemy.team = 1;
+        enemy.role = Fighter.ROLE_HERO;
+        enemy.commander = true;
+        enemy.ai = null;                  // 사람이 조종합니다 (참가자의 조작이 건너옴)
+        enemy.lane = armyMode ? GameData.TROY_CMDR_LANE : 0f;
+        enemy.resetForBattle(armyMode ? GameData.TROY_CMDR_X : 700f, -1);
+
+        versus = true;
+        mirror = asMirror;
+        localSide = side;
+        recordEvents = !asMirror;
+        pad0.clear();
+        pad1.clear();
+        soloPad.clear();
+        timeLeft = st.timeLimit;
+    }
+
+    private static int clampIndex(int i) {
+        if (i < 0) return 0;
+        if (i >= GameData.VERSUS_ROSTER.length) return GameData.VERSUS_ROSTER.length - 1;
+        return i;
+    }
+
+    /** 이 기기를 쥔 사람 입장에서의 결과. 일반 전투는 그냥 result 입니다. */
+    public int localResult() {
+        if (!versus || result == RESULT_NONE || result == RESULT_DRAW) return result;
+        if (localSide == 0) return result;
+        return result == RESULT_WIN ? RESULT_LOSE : RESULT_WIN;
+    }
+
+    /** 이 기기를 쥔 사람의 캐릭터 */
+    public Fighter localFighter() {
+        return (versus && localSide == 1) ? enemy : player;
+    }
+
+    /** 상대편 캐릭터 */
+    public Fighter remoteFighter() {
+        return (versus && localSide == 1) ? player : enemy;
     }
 
     // ==================================================================
     //  매 프레임 갱신
     // ==================================================================
     public void update(float dt, TouchInput input) {
+        if (mirror) {
+            updateMirror(dt);
+            return;
+        }
         elapsed += dt;
         phaseTime += dt;
 
@@ -320,6 +433,8 @@ public class BattleWorld {
                 if (phaseTime >= 1.9f) {
                     phase = PHASE_FIGHT;
                     phaseTime = 0f;
+                    pad0.discard();     // 준비 중에 눌러 둔 공격이 시작과 동시에 나가지 않게
+                    pad1.discard();
                 }
                 break;
 
@@ -333,7 +448,18 @@ public class BattleWorld {
                 player.usingMelee = (player.meleeLightMove != null)
                         && Math.abs(target.x - player.x) <= player.meleeRange;
 
-                handlePlayerInput(input, target);
+                if (versus) {
+                    // 두 사람 모두 같은 함수로 움직입니다. (P1 = 내 터치, P2 = 건너온 조작)
+                    Fighter target2 = nearestFoe(enemy);
+                    if (target2 == null) target2 = player;
+                    enemy.usingMelee = (enemy.meleeLightMove != null)
+                            && Math.abs(target2.x - enemy.x) <= enemy.meleeRange;
+                    handlePad(player, target, pad0);
+                    handlePad(enemy, target2, pad1);
+                } else {
+                    soloPad.readFrom(input);
+                    handlePad(player, target, soloPad);
+                }
 
                 // 병사마다 가장 가까운 적을 골라 AI 를 돌립니다.
                 for (int i = 0; i < unitCount; i++) {
@@ -395,43 +521,63 @@ public class BattleWorld {
     // ==================================================================
     //  플레이어 조작
     // ==================================================================
-    private void handlePlayerInput(TouchInput input, Fighter target) {
-        boolean pressAttack = input.consumePress(TouchInput.BTN_ATTACK);
-        boolean pressDodge = input.consumePress(TouchInput.BTN_DODGE);
-        boolean pressUlt = input.consumePress(TouchInput.BTN_ULT);
-        boolean guard = input.isHeld(TouchInput.BTN_GUARD);
-        int dir = (input.isHeld(TouchInput.BTN_RIGHT) ? 1 : 0)
-                - (input.isHeld(TouchInput.BTN_LEFT) ? 1 : 0);
+    private void handlePad(Fighter me, Fighter target, PadInput pad) {
+        boolean pressAttack = pad.takeAttack();
+        boolean pressDodge = pad.takeDodge();
+        boolean pressUlt = pad.takeUlt();
+        boolean guard = pad.guard;
+        int dir = pad.dir();
 
-        if (!player.isAlive()) return;
+        if (!me.isAlive()) return;
 
-        if (pressUlt && player.tryUltimate()) {
+        if (pressUlt && me.tryUltimate()) {
             screenFlash = 0.9f;
             shake = 1.1f;
-            spawnText(player.x, Theme.GROUND - 180f, player.ultimateMove.name, Theme.RAGE_FULL, 1.1f);
+            spawnText(me.x, Theme.GROUND - 180f, me.ultimateMove.name, Theme.RAGE_FULL, 1.1f);
             playSfx("sfx_ultimate");
             return;
         }
         if (pressDodge) {
-            int dodgeDir = (dir != 0) ? dir : -player.facing;
-            if (player.tryDodge(dodgeDir)) {
-                spawnDust(player.x, Theme.GROUND, -dodgeDir);
+            int dodgeDir = (dir != 0) ? dir : -me.facing;
+            if (me.tryDodge(dodgeDir)) {
+                spawnDust(me.x, Theme.GROUND, -dodgeDir);
                 playSfx("sfx_dodge");
                 return;
             }
         }
         // 활과 검을 자동으로 바꿔 쓰려면 지금 거리를 알아야 합니다.
-        float distance = Math.abs(target.x - player.x);
-        if (pressAttack && player.tryAttack(distance)) {
-            playSfx(player.usingMelee ? "sfx_hit" : "sfx_swing");
+        float distance = Math.abs(target.x - me.x);
+        if (pressAttack && me.tryAttack(distance)) {
+            playSfx(me.usingMelee ? "sfx_hit" : "sfx_swing");
         }
 
         if (guard) {
-            player.walk(0);
-            player.setGuard(true);
+            me.walk(0);
+            me.setGuard(true);
         } else {
-            player.setGuard(false);
-            player.walk(dir);
+            me.setGuard(false);
+            me.walk(dir);
+        }
+    }
+
+    // ==================================================================
+    //  참가자 기기: 계산 없이 받은 장면을 이어서 움직이기만 합니다.
+    // ==================================================================
+    private void updateMirror(float dt) {
+        elapsed += dt;
+        phaseTime += dt;
+        if (shake > 0f) shake -= dt * 10f;
+        if (shake < 0f) shake = 0f;
+        if (screenFlash > 0f) screenFlash -= dt * 4.5f;
+        updateEffects(dt);
+        // 방장 화면(30번/초)과 다음 장면 사이를 이 기기가 부드럽게 이어 줍니다.
+        updateUnits(dt);
+        for (int i = 0; i < MAX_ARROWS; i++) {
+            Arrow a = arrows[i];
+            if (!a.active) continue;
+            a.x += a.vx * dt;
+            a.life -= dt;
+            if (a.life <= 0f || a.x < -40f || a.x > Theme.VW + 40f) a.active = false;
         }
     }
 
@@ -639,21 +785,26 @@ public class BattleWorld {
             endPhase();
             celebrateTeam(0);
             spawnText(enemy.x, Theme.GROUND - 170f, "격파!", Theme.TEXT_GOLD, 1.2f);
-            playSfx("sfx_win");
+            if (!versus) playSfx("sfx_win");
             return;
         }
         if (!player.isAlive()) {
             result = RESULT_LOSE;
             endPhase();
             celebrateTeam(1);
-            playSfx("sfx_lose");
+            if (versus) spawnText(player.x, Theme.GROUND - 170f, "격파!", Theme.TEXT_GOLD, 1.2f);
+            else playSfx("sfx_lose");
             return;
         }
         if (timeLeft <= 0f) {
             timeLeft = 0f;
-            result = (player.hpRatio() > enemy.hpRatio()) ? RESULT_WIN : RESULT_LOSE;
+            if (versus && player.hpRatio() == enemy.hpRatio()) {
+                result = RESULT_DRAW;
+            } else {
+                result = (player.hpRatio() > enemy.hpRatio()) ? RESULT_WIN : RESULT_LOSE;
+            }
             endPhase();
-            celebrateTeam(result == RESULT_WIN ? 0 : 1);
+            if (result != RESULT_DRAW) celebrateTeam(result == RESULT_WIN ? 0 : 1);
         }
     }
 
@@ -686,8 +837,14 @@ public class BattleWorld {
         return effects[rnd.nextInt(MAX_EFFECTS)];
     }
 
-    private void spawnEffect(int type, float x, float y, float vx, float vy,
-                             float life, float size, int color, String text) {
+    public void spawnEffect(int type, float x, float y, float vx, float vy,
+                            float life, float size, int color, String text) {
+        if (recordEvents && fxLog.size() < 60) {
+            FxEvent ev = new FxEvent();
+            ev.type = type; ev.x = x; ev.y = y; ev.vx = vx; ev.vy = vy;
+            ev.life = life; ev.size = size; ev.color = color; ev.text = text;
+            fxLog.add(ev);
+        }
         Effect e = freeEffect();
         e.active = true;
         e.type = type;
@@ -744,7 +901,15 @@ public class BattleWorld {
         }
     }
 
-    private void playSfx(String name) {
+    public void playSfx(String name) {
+        if (recordEvents && sfxLog.size() < 24) {
+            for (int i = 0; i < SoundManager.SFX_NAMES.length; i++) {
+                if (SoundManager.SFX_NAMES[i].equals(name)) {
+                    sfxLog.add(Integer.valueOf(i));
+                    break;
+                }
+            }
+        }
         if (sound != null) sound.play(name);
     }
 

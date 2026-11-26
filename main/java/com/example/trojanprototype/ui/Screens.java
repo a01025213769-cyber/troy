@@ -42,6 +42,9 @@ public final class Screens {
     public static final float[] TITLE_CHAPTERS = {218f, 280f, 362f, 338f};
     public static final float[] TITLE_HOWTO = {376f, 280f, 520f, 338f};
 
+    /** 상단 바 오른쪽의 미니게임(2인 대전) 입구 */
+    public static final float[] TITLE_MINIGAME = {690f, 9f, 910f, 47f};
+
     public static final float[] STORY_SKIP = {812f, 22f, 938f, 66f};
     public static final float[] STORY_SAVE = {676f, 22f, 802f, 66f};
 
@@ -115,6 +118,14 @@ public final class Screens {
         d.rect(c, 0f, 0f, Theme.VW, 56f, 0xE60A0705);
         d.line(c, 0f, 56f, Theme.VW, 56f, 1.2f, 0x88B8914F);
         d.spaced(c, "트로이 전쟁", 60f, 37f, 24f, Theme.TEXT_GOLD, Draw.LEFT, true, 6f);
+
+        // 미니게임 입구 — 2인 대전
+        float[] mg = TITLE_MINIGAME;
+        d.card(c, mg[0], mg[1], mg[2], mg[3], true);
+        d.round(c, mg[0], mg[1], mg[2], mg[3], 3f,
+                Draw.withAlpha(0xFFFFE2A8, (int) (10 + 10 * Math.sin(time * 3f))));
+        d.text(c, "미니게임", mg[0] + 20f, mg[1] + 25f, 16f, Theme.TEXT_GOLD, Draw.LEFT, true);
+        d.text(c, "2인 대전", mg[2] - 18f, mg[1] + 24f, 12f, Theme.TEXT_DIM, Draw.RIGHT, false);
 
         // ---- 로고 영역
         d.spaced(c, "트로이", 60f, 142f, 52f, Theme.TEXT, Draw.LEFT, true, 10f);
@@ -405,7 +416,7 @@ public final class Screens {
     // ==================================================================
     //  공통 — 상단 바 (저장 슬롯 / 챕터 선택 화면 제목줄)
     // ==================================================================
-    private static void topBar(Canvas c, Draw d, String title) {
+    static void topBar(Canvas c, Draw d, String title) {
         d.rect(c, 0f, 0f, Theme.VW, 56f, 0xE60A0705);
         d.line(c, 0f, 56f, Theme.VW, 56f, 1.2f, 0x88B8914F);
         d.spaced(c, title, 60f, 37f, 24f, Theme.TEXT_GOLD, Draw.LEFT, true, 6f);
