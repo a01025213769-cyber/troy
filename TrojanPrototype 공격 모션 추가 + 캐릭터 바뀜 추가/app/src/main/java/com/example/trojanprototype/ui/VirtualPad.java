@@ -106,7 +106,15 @@ public final class VirtualPad {
         }
         d.text(c, "필살기", Theme.BTN_ULT_X, Theme.BTN_ULT_Y + 2f, 17f,
                 ready ? 0xFF2A1E10 : Theme.TEXT_DIM, Draw.CENTER, true);
+        // 흔들기 필살기가 켜져 있으면 준비됐을 때 알려 줍니다.
+        if (ready && shakeHint) {
+            d.text(c, "흔들어도 OK", Theme.BTN_ULT_X, Theme.BTN_ULT_Y + 21f, 11f,
+                    0xFF4A3418, Draw.CENTER, true);
+        }
     }
+
+    /** 흔들기 필살기가 켜져 있는지 (GameEngine 이 설정합니다) */
+    public static volatile boolean shakeHint = false;
 
     // ------------------------------------------------------------------
     private static void drawSmallButtons(Canvas c, Draw d, TouchInput in, boolean aiDebugOn) {

@@ -175,6 +175,14 @@ public class TouchInput {
         return false;
     }
 
+    /**
+     * 화면을 누르지 않고 버튼을 "누른 것"으로 만듭니다.
+     * (폰 흔들기로 필살기를 쓸 때 — 이후 처리는 실제로 버튼을 누른 것과 똑같습니다)
+     */
+    public synchronized void injectPress(int button) {
+        if (button >= 0 && button < BTN_COUNT) pressed[button] = true;
+    }
+
     public synchronized float heldTime(int button) {
         return heldTime[button];
     }

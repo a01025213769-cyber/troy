@@ -48,6 +48,8 @@ public final class Screens {
     public static final float[] TITLE_SOUND = {790f, 12f, 920f, 46f};
     /** 타이틀 오른쪽 위 — 진동 켜기/끄기 */
     public static final float[] TITLE_VIBRATE = {650f, 12f, 780f, 46f};
+    /** 타이틀 오른쪽 위 — 흔들기 필살기 켜기/끄기 */
+    public static final float[] TITLE_SHAKE = {510f, 12f, 640f, 46f};
 
     public static final float[] STORY_SKIP = {812f, 22f, 938f, 66f};
     public static final float[] STORY_SAVE = {676f, 22f, 802f, 66f};
@@ -101,7 +103,8 @@ public final class Screens {
     // ==================================================================
     public static void drawTitle(Canvas c, Draw d, Assets assets, float time, int diffIndex,
                                  int cleared, boolean hasSave, boolean soundOn,
-                                 boolean vibrationOn, boolean vibrationAvailable) {
+                                 boolean vibrationOn, boolean vibrationAvailable,
+                                 boolean shakeOn, boolean shakeAvailable) {
         Backdrop.draw(c, d, Backdrop.NIGHT_GATE, time, 0f);
         // 왼쪽 메뉴 영역을 어둡게 눌러 글자가 또렷하게 보이게 합니다.
         for (int i = 0; i < 8; i++) {
@@ -130,6 +133,14 @@ public final class Screens {
         d.text(c, soundOn ? "♪  소리 켬" : "♪  소리 끔", (sb[0] + sb[2]) * 0.5f,
                 (sb[1] + sb[3]) * 0.5f + 6f, 15f, soundOn ? Theme.TEXT_GOLD : Theme.TEXT_DIM,
                 Draw.CENTER, true);
+
+        // ---- 흔들기 필살기 켜기/끄기 (가속도 센서가 없는 기기에서는 "흔들기 없음")
+        float[] kb = TITLE_SHAKE;
+        boolean kOn = shakeAvailable && shakeOn;
+        d.card(c, kb[0], kb[1], kb[2], kb[3], kOn);
+        d.text(c, !shakeAvailable ? "흔들기 없음" : (shakeOn ? "흔들기 켬" : "흔들기 끔"),
+                (kb[0] + kb[2]) * 0.5f, (kb[1] + kb[3]) * 0.5f + 6f, 15f,
+                kOn ? Theme.TEXT_GOLD : Theme.TEXT_DIM, Draw.CENTER, true);
 
         // ---- 진동 켜기/끄기 (진동 장치가 없는 기기에서는 "진동 없음")
         float[] vb = TITLE_VIBRATE;
@@ -244,7 +255,7 @@ public final class Screens {
                 {"공격", "탭해서 공격. 빠르게 연타하면 3타째에 강공격이 나갑니다"},
                 {"방어", "누르고 있는 동안 피해가 75% 줄어듭니다 (강공격은 막히지 않음)"},
                 {"회피", "짧게 무적이 됩니다. 적의 공격 직전에 쓰세요"},
-                {"필살기", "분노가 100%가 되면 사용할 수 있습니다"},
+                {"필살기", "분노가 100%가 되면 사용할 수 있습니다 · 폰을 흔들어도 나갑니다"},
                 {"AI", "적 AI 의 판단 과정을 화면에 표시합니다"}
         };
         for (int i = 0; i < rows.length; i++) {

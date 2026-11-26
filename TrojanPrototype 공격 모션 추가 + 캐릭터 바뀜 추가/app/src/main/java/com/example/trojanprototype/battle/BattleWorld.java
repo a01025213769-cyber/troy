@@ -783,6 +783,11 @@ public class BattleWorld {
         }
     }
 
+    /** 플레이어 머리 위에 짧은 안내 글자를 띄웁니다. (예: 흔들었는데 분노가 부족할 때) */
+    public void notice(String text, int color) {
+        spawnText(player.x, Theme.GROUND + player.lane - 196f, text, color, 0.8f);
+    }
+
     private void spawnText(float x, float y, String text, int color, float life) {
         spawnEffect(FX_TEXT, x, y, 0f, -46f, life, 22f, color, text);
     }

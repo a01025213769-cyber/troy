@@ -14,6 +14,7 @@ import com.example.trojanprototype.data.record.RecordRepository;
 import com.example.trojanprototype.ui.Backdrop;
 import com.example.trojanprototype.ui.BattleRenderer;
 import com.example.trojanprototype.ui.LottieFx;
+import com.example.trojanprototype.ui.VirtualPad;
 import com.example.trojanprototype.util.Haptics;
 import com.example.trojanprototype.ui.Screens;
 import com.example.trojanprototype.ui.Theme;
@@ -73,6 +74,8 @@ public class GameEngine {
     private final Haptics haptics;
     /** Lottie 승리 연출 */
     private final LottieFx fx;
+    /** 폰 흔들기 감지 (가속도 센서) — 전투 중 흔들면 필살기 */
+    private final ShakeDetector shake;
 
     private final Assets assets;
     private final SoundManager sound;
@@ -126,6 +129,8 @@ public class GameEngine {
         this.haptics = new Haptics(ctx);
         this.world.setHaptics(haptics);
         this.fx = new LottieFx(ctx, assets);
+        this.shake = new ShakeDetector(ctx);
+        VirtualPad.shakeHint = shake.isAvailable() && shake.isOn();
         this.cleared = save.cleared();
         refreshSlots();
         setScene(SCENE_TITLE);
@@ -370,6 +375,9 @@ public class GameEngine {
             playTime += dt;
         }
 
+        // 전투가 아닐 때 흔든 것은 버립니다. (전투에 들어가자마자 필살기가 나가지 않도록)
+        if (scene != SCENE_BATTLE) shake.consumeShake();
+
         switch (scene) {
             case SCENE_SLOTS: updateSlots(); break;
             case SCENE_CHAPTERS: updateChapters(); break;
@@ -391,6 +399,18 @@ public class GameEngine {
             sound.toggleSound();
             sound.play("sfx_select");
             toast(sound.isSoundOn() ? "소리를 켰습니다" : "소리를 껐습니다");
+            return;
+        }
+        if (input.consumeTapIn(Screens.TITLE_SHAKE[0], Screens.TITLE_SHAKE[1],
+                Screens.TITLE_SHAKE[2], Screens.TITLE_SHAKE[3])) {
+            sound.play("sfx_select");
+            if (!shake.isAvailable()) {
+                toast("이 기기에는 가속도 센서가 없습니다");
+            } else {
+                shake.toggle();
+                VirtualPad.shakeHint = shake.isOn();
+                toast(shake.isOn() ? "전투 중 폰을 흔들면 필살기가 나갑니다" : "흔들기 필살기를 껐습니다");
+            }
             return;
         }
         if (input.consumeTapIn(Screens.TITLE_VIBRATE[0], Screens.TITLE_VIBRATE[1],
@@ -494,6 +514,15 @@ public class GameEngine {
     }
 
     private void updateBattle(float dt) {
+        // 폰을 흔들면 필살기 버튼을 누른 것과 같게 처리합니다.
+        // (일시정지 중이거나 "시작!" 전에 흔든 것은 버립니다)
+        if (shake.consumeShake() && !paused && world.phase == BattleWorld.PHASE_FIGHT) {
+            if (world.player.ultimateReady()) {
+                input.injectPress(TouchInput.BTN_ULT);
+            } else {
+                world.notice("분노 부족", Theme.TEXT_DIM);
+            }
+        }
         if (input.consumePress(TouchInput.BTN_AI)) {
             aiDebug = !aiDebug;
             sound.play("sfx_select");
@@ -717,11 +746,13 @@ public class GameEngine {
         switch (scene) {
             case SCENE_TITLE:
                 Screens.drawTitle(c, d, assets, sceneTime, diffIndex, cleared, hasSave,
-                        sound.isSoundOn(), haptics.isOn(), haptics.isAvailable());
+                        sound.isSoundOn(), haptics.isOn(), haptics.isAvailable(),
+                        shake.isOn(), shake.isAvailable());
                 break;
             case SCENE_HOWTO:
                 Screens.drawTitle(c, d, assets, sceneTime, diffIndex, cleared, hasSave,
-                        sound.isSoundOn(), haptics.isOn(), haptics.isAvailable());
+                        sound.isSoundOn(), haptics.isOn(), haptics.isAvailable(),
+                        shake.isOn(), shake.isAvailable());
                 Screens.drawHowTo(c, d);
                 break;
             case SCENE_SLOTS:
@@ -783,9 +814,11 @@ public class GameEngine {
         input.clearAll();
         sound.onPause();
         haptics.stop();
+        shake.stop();        // 화면이 가려지면 센서를 꺼서 배터리를 아낍니다
     }
 
     public void onResume() {
+        shake.start();
         sound.onResume();
         updateBgm();
     }

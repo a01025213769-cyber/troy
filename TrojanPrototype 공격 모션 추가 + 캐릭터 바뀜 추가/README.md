@@ -18,6 +18,7 @@
 | 기기 기능 | 쓰는 곳 | 위치 |
 |---|---|---|
 | **진동** (Vibrator / VibrationEffect) | 피격 세기에 따라 다른 진동 (막음 15ms · 맞음 30~55ms · 가드 브레이크 70ms), 필살기, 승리·패배 패턴. 타이틀 오른쪽 위에서 켜기/끄기 (설정 저장). `VIBRATE` 권한 사용 | `util/Haptics.java`, `battle/BattleWorld.java` |
+| **가속도 센서** (SensorManager) | 전투 중 **폰을 흔들면 필살기**. 2.2g 넘는 흔들림이 0.6초 안에 2번 있어야 인정 (버튼을 세게 누르는 정도로는 발동하지 않음), 발동 후 1.2초 재감지 없음. 분노가 덜 찼으면 "분노 부족" 표시. 앱이 가려지면 센서를 꺼서 배터리 절약. 타이틀에서 켜기/끄기 | `core/ShakeDetector.java`, `core/GameEngine.java` |
 
 ---
 
