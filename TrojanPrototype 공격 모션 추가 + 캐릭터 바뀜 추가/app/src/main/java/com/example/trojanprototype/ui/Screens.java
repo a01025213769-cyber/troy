@@ -38,9 +38,12 @@ public final class Screens {
             {376f, 376f, 520f, 416f}
     };
     public static final float[] TITLE_START = {60f, 190f, 520f, 268f};
-    public static final float[] TITLE_CONTINUE = {60f, 280f, 204f, 338f};
-    public static final float[] TITLE_CHAPTERS = {218f, 280f, 362f, 338f};
-    public static final float[] TITLE_HOWTO = {376f, 280f, 520f, 338f};
+    public static final float[] TITLE_CONTINUE = {60f, 280f, 166f, 338f};
+    public static final float[] TITLE_CHAPTERS = {178f, 280f, 284f, 338f};
+    public static final float[] TITLE_RECORDS = {296f, 280f, 402f, 338f};
+    public static final float[] TITLE_HOWTO = {414f, 280f, 520f, 338f};
+    /** 전적 화면 — 뒤로 */
+    public static final float[] RECORDS_BACK = {60f, 474f, 200f, 518f};
     /** 타이틀 오른쪽 위 — 소리 켜기/끄기 */
     public static final float[] TITLE_SOUND = {790f, 12f, 920f, 46f};
 
@@ -148,6 +151,7 @@ public final class Screens {
         titleTile(c, d, TITLE_CONTINUE, "이어하기", hasSave ? "저장한 곳부터" : "저장 없음", hasSave);
         titleTile(c, d, TITLE_CHAPTERS, "챕터 선택",
                 Math.min(cleared + 1, ChapterData.count()) + " / " + ChapterData.count() + " 열림", true);
+        titleTile(c, d, TITLE_RECORDS, "전적", "전투 기록", true);
         titleTile(c, d, TITLE_HOWTO, "조작 방법", "게임 방법", true);
 
         // ---- 난이도
@@ -409,6 +413,84 @@ public final class Screens {
                     Draw.withAlpha(Theme.TEXT_GOLD, (int) (120 + 135 * blink)),
                     Draw.CENTER, true);
         }
+    }
+
+    // ==================================================================
+    //  전적 — Room 데이터베이스에 쌓인 전투 기록
+    // ==================================================================
+    private static final java.text.SimpleDateFormat RECORD_DATE =
+            new java.text.SimpleDateFormat("MM.dd HH:mm", java.util.Locale.KOREA);
+
+    public static void drawRecords(Canvas c, Draw d, float time,
+                                   com.example.trojanprototype.data.record.RecordRepository.Snapshot s) {
+        Backdrop.draw(c, d, Backdrop.NIGHT_GATE, time, 0f);
+        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xDD050302);
+        topBar(c, d, "전적");
+        d.text(c, "기기 안 SQLite 데이터베이스(Room)에 저장된 전투 기록", 900f, 36f, 12f,
+                Theme.TEXT_DIM, Draw.RIGHT, false);
+
+        if (s == null) {
+            d.text(c, "기록을 불러오는 중…", 480f, 280f, 18f, Theme.TEXT_DIM, Draw.CENTER, false);
+            BattleRenderer.menuButton(c, d, RECORDS_BACK, "← 뒤로", false);
+            return;
+        }
+
+        // ---- 왼쪽: 챕터별 통계
+        d.panel(c, 60f, 76f, 470f, 456f, Theme.PANEL);
+        d.text(c, "챕터별 기록", 84f, 108f, 16f, Theme.TEXT_GOLD, Draw.LEFT, true);
+        d.text(c, "승리 / 도전", 300f, 108f, 11f, Theme.TEXT_DIM, Draw.CENTER, false);
+        d.text(c, "최고 기록", 400f, 108f, 11f, Theme.TEXT_DIM, Draw.CENTER, false);
+        for (int i = 0; i < GameData.STAGES.length; i++) {
+            float y = 150f + i * 72f;
+            GameData.StageDef st = GameData.STAGES[i];
+            com.example.trojanprototype.data.record.BattleRecordDao.StageStat ss = null;
+            for (int k = 0; k < s.stages.size(); k++) {
+                if (s.stages.get(k).stage == i) ss = s.stages.get(k);
+            }
+            d.line(c, 84f, y - 24f, 446f, y - 24f, 1f, 0x44B8914F);
+            d.text(c, st.chapter, 84f, y, 11f, Theme.BRONZE_LIGHT, Draw.LEFT, true);
+            d.text(c, st.enemyName, 84f, y + 22f, 16f, Theme.TEXT, Draw.LEFT, true);
+            if (ss == null) {
+                d.text(c, "기록 없음", 350f, y + 14f, 13f, Theme.TEXT_DIM, Draw.CENTER, false);
+                continue;
+            }
+            d.text(c, ss.wins + " / " + ss.plays, 300f, y + 16f, 18f, Theme.TEXT, Draw.CENTER, true);
+            if (ss.bestSeconds != null) {
+                d.text(c, ss.bestSeconds + "초", 400f, y + 6f, 16f, Theme.TEXT_GOLD, Draw.CENTER, true);
+                d.text(c, "체력 " + (ss.bestHp == null ? 0 : ss.bestHp) + "% 남김", 400f, y + 26f, 11f,
+                        Theme.TEXT_DIM, Draw.CENTER, false);
+            } else {
+                d.text(c, "아직 승리 없음", 400f, y + 16f, 12f, Theme.TEXT_DIM, Draw.CENTER, false);
+            }
+        }
+
+        // ---- 오른쪽: 최근 전투
+        d.panel(c, 490f, 76f, 900f, 456f, Theme.PANEL);
+        d.text(c, "최근 전투", 514f, 108f, 16f, Theme.TEXT_GOLD, Draw.LEFT, true);
+        d.text(c, "전체 " + s.total + "판", 876f, 108f, 12f, Theme.TEXT_DIM, Draw.RIGHT, false);
+        if (s.recent.isEmpty()) {
+            d.text(c, "전투를 하면 여기에 기록이 쌓입니다", 695f, 270f, 14f, Theme.TEXT_DIM,
+                    Draw.CENTER, false);
+        }
+        for (int i = 0; i < s.recent.size(); i++) {
+            com.example.trojanprototype.data.record.BattleRecord r = s.recent.get(i);
+            float y = 146f + i * 44f;
+            boolean win = r.win == 1;
+            d.round(c, 510f, y - 18f, 880f, y + 18f, 4f, win ? 0x332E4A2A : 0x334A2622);
+            d.text(c, win ? "승리" : "패배", 528f, y + 6f, 15f,
+                    win ? Theme.TEXT_GOLD : 0xFFD9604C, Draw.LEFT, true);
+            String chap = (r.stage >= 0 && r.stage < GameData.STAGES.length)
+                    ? GameData.STAGES[r.stage].chapter : "?";
+            String diff = (r.difficulty >= 0 && r.difficulty < GameData.DIFFICULTIES.length)
+                    ? GameData.DIFFICULTIES[r.difficulty].name : "";
+            d.text(c, chap + " · " + diff, 580f, y + 1f, 12f, Theme.TEXT, Draw.LEFT, true);
+            d.text(c, r.hero + " · " + r.seconds + "초 · 체력 " + r.hpPercent + "%", 580f, y + 15f, 11f,
+                    Theme.TEXT_DIM, Draw.LEFT, false);
+            d.text(c, RECORD_DATE.format(new java.util.Date(r.playedAt)), 866f, y + 6f, 11f,
+                    Theme.TEXT_DIM, Draw.RIGHT, false);
+        }
+
+        BattleRenderer.menuButton(c, d, RECORDS_BACK, "← 뒤로", false);
     }
 
     // ==================================================================

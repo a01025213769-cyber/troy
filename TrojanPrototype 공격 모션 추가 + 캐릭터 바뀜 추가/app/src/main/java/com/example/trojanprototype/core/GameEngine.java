@@ -9,6 +9,8 @@ import com.example.trojanprototype.data.ChapterData;
 import com.example.trojanprototype.data.GameData;
 import com.example.trojanprototype.data.SaveManager;
 import com.example.trojanprototype.data.StoryData;
+import com.example.trojanprototype.data.record.BattleRecord;
+import com.example.trojanprototype.data.record.RecordRepository;
 import com.example.trojanprototype.ui.Backdrop;
 import com.example.trojanprototype.ui.BattleRenderer;
 import com.example.trojanprototype.ui.Screens;
@@ -61,6 +63,10 @@ public class GameEngine {
     public static final int SCENE_FINALE = 5;
     public static final int SCENE_SLOTS = 6;
     public static final int SCENE_CHAPTERS = 7;
+    public static final int SCENE_RECORDS = 8;
+
+    /** 전투 기록 데이터베이스 (Room) */
+    private final RecordRepository records;
 
     private final Assets assets;
     private final SoundManager sound;
@@ -110,6 +116,7 @@ public class GameEngine {
         Backdrop.setAssets(assets);
         this.sound = new SoundManager(ctx, assets);
         this.save = new SaveManager(ctx);
+        this.records = new RecordRepository(ctx);
         this.cleared = save.cleared();
         refreshSlots();
         setScene(SCENE_TITLE);
@@ -357,6 +364,7 @@ public class GameEngine {
         switch (scene) {
             case SCENE_SLOTS: updateSlots(); break;
             case SCENE_CHAPTERS: updateChapters(); break;
+            case SCENE_RECORDS: updateRecords(); break;
             case SCENE_TITLE: updateTitle(); break;
             case SCENE_HOWTO: updateHowTo(); break;
             case SCENE_STORY: updateStory(dt); break;
@@ -408,6 +416,13 @@ public class GameEngine {
             sound.play("sfx_select");
             cleared = save.cleared();
             setScene(SCENE_CHAPTERS);
+            return;
+        }
+        if (input.consumeTapIn(Screens.TITLE_RECORDS[0], Screens.TITLE_RECORDS[1],
+                Screens.TITLE_RECORDS[2], Screens.TITLE_RECORDS[3])) {
+            sound.play("sfx_select");
+            records.refresh();
+            setScene(SCENE_RECORDS);
             return;
         }
         if (input.consumeTapIn(Screens.TITLE_HOWTO[0], Screens.TITLE_HOWTO[1],
@@ -496,6 +511,7 @@ public class GameEngine {
         world.update(dt, input);
 
         if (world.finished) {
+            saveRecord();
             if (world.result == BattleWorld.RESULT_WIN) {
                 // 전투 챕터는 이겨야 클리어 — 다음 챕터가 열리고, 슬롯 플레이면 자동 저장됩니다.
                 onChapterCleared(stageIndex + 1, Math.min(flowStep + 1, ChapterData.ENDING_STEP));
@@ -503,6 +519,30 @@ public class GameEngine {
             }
             setScene(SCENE_RESULT);
         }
+    }
+
+    /** 방금 끝난 전투를 데이터베이스에 한 줄로 남깁니다. */
+    private void saveRecord() {
+        BattleRecord r = new BattleRecord();
+        r.stage = stageIndex;
+        r.difficulty = diffIndex;
+        r.win = (world.result == BattleWorld.RESULT_WIN) ? 1 : 0;
+        r.hpPercent = Math.round(world.player.hpRatio() * 100f);
+        r.seconds = (int) world.elapsed;
+        r.bestCombo = world.bestCombo;
+        r.hero = world.character != null ? world.character.name : "";
+        r.playedAt = System.currentTimeMillis();
+        records.add(r);
+    }
+
+    private void updateRecords() {
+        if (input.consumeTapIn(Screens.RECORDS_BACK[0], Screens.RECORDS_BACK[1],
+                Screens.RECORDS_BACK[2], Screens.RECORDS_BACK[3])) {
+            sound.play("sfx_select");
+            setScene(SCENE_TITLE);
+            return;
+        }
+        input.consumeTap();
     }
 
     private void updateResult() {
@@ -670,6 +710,9 @@ public class GameEngine {
             case SCENE_CHAPTERS:
                 Screens.drawChapters(c, d, sceneTime, cleared);
                 break;
+            case SCENE_RECORDS:
+                Screens.drawRecords(c, d, sceneTime, records.snapshot());
+                break;
             case SCENE_STORY:
                 Screens.drawStory(c, d, assets, story, storyShown, storyLineTime, sceneTime);
                 break;
@@ -706,6 +749,7 @@ public class GameEngine {
                 else leaveSlots();
                 return true;
             case SCENE_CHAPTERS:
+            case SCENE_RECORDS:
                 setScene(SCENE_TITLE);
                 return true;
             default:

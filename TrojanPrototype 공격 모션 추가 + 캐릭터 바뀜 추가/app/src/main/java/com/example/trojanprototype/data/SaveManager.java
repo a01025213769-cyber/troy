@@ -3,6 +3,9 @@ package com.example.trojanprototype.data;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
+
 /**
  * 저장 슬롯과 챕터 클리어 기록.
  *
@@ -14,6 +17,8 @@ import android.content.SharedPreferences;
  *              슬롯과 상관없이 한 번 열린 챕터는 계속 열려 있습니다.
  *
  * SharedPreferences 에 저장하므로 앱을 껐다 켜도 남습니다.
+ * 슬롯 내용은 Gson(외부 라이브러리)으로 JSON 문자열 하나로 묶어 저장합니다.
+ * (예전 버전의 항목별 저장은 처음 읽을 때 JSON 으로 자동 변환됩니다)
  */
 public final class SaveManager {
 
@@ -48,43 +53,86 @@ public final class SaveManager {
     // ------------------------------------------------------------------
     //  슬롯
     // ------------------------------------------------------------------
+    /**
+     * 슬롯 하나에 실제로 저장되는 내용. Gson 이 이 객체를 JSON 문자열로 바꿔 저장합니다.
+     *   예) {"step":5,"difficulty":1,"playSeconds":312,"savedAt":1764120000000,"version":2}
+     * 항목을 늘리고 싶으면 필드만 추가하면 됩니다. (예전 저장에는 기본값이 들어갑니다)
+     */
+    static final class SlotData {
+        int version = 2;
+        int step = 1;
+        int difficulty = 1;
+        long playSeconds = 0L;
+        long savedAt = 0L;
+    }
+
+    private final Gson gson = new Gson();
+
+    private static String jsonKey(int index) {
+        return "slot" + index + "_json";
+    }
+
+    /** 저장된 JSON 을 읽습니다. 예전 방식(항목별 저장)이면 읽어서 JSON 으로 옮겨 둡니다. */
+    private SlotData load(int index) {
+        String json = sp.getString(jsonKey(index), null);
+        if (json != null) {
+            try {
+                SlotData d = gson.fromJson(json, SlotData.class);
+                if (d != null) return d;
+            } catch (JsonSyntaxException ignored) {
+                // 깨진 저장은 비어 있는 슬롯으로 취급합니다.
+            }
+            return null;
+        }
+        String k = "slot" + index + "_";
+        if (!sp.getBoolean(k + "used", false)) return null;
+        SlotData d = new SlotData();
+        d.step = sp.getInt(k + "step", 1);
+        d.difficulty = sp.getInt(k + "diff", 1);
+        d.playSeconds = sp.getLong(k + "play", 0L);
+        d.savedAt = sp.getLong(k + "at", 0L);
+        sp.edit().putString(jsonKey(index), gson.toJson(d)).apply();
+        removeLegacy(sp.edit(), index).apply();
+        return d;
+    }
+
+    private static SharedPreferences.Editor removeLegacy(SharedPreferences.Editor e, int index) {
+        String k = "slot" + index + "_";
+        return e.remove(k + "used").remove(k + "step").remove(k + "diff")
+                .remove(k + "play").remove(k + "at");
+    }
+
     public synchronized Slot read(int index) {
         Slot s = new Slot();
         if (index < 0 || index >= SLOT_COUNT) return s;
-        String k = "slot" + index + "_";
-        s.used = sp.getBoolean(k + "used", false);
-        if (!s.used) return s;
-        s.step = clamp(sp.getInt(k + "step", 1), 1, ChapterData.ENDING_STEP);
-        s.difficulty = clamp(sp.getInt(k + "diff", 1), 0, GameData.DIFFICULTIES.length - 1);
-        s.playSeconds = Math.max(0L, sp.getLong(k + "play", 0L));
-        s.savedAt = sp.getLong(k + "at", 0L);
+        SlotData d = load(index);
+        if (d == null) return s;
+        s.used = true;
+        s.step = clamp(d.step, 1, ChapterData.ENDING_STEP);
+        s.difficulty = clamp(d.difficulty, 0, GameData.DIFFICULTIES.length - 1);
+        s.playSeconds = Math.max(0L, d.playSeconds);
+        s.savedAt = d.savedAt;
         return s;
     }
 
     public synchronized void write(int index, int step, int difficulty, long playSeconds) {
         if (index < 0 || index >= SLOT_COUNT) return;
-        String k = "slot" + index + "_";
-        sp.edit()
-                .putBoolean(k + "used", true)
-                .putInt(k + "step", clamp(step, 1, ChapterData.ENDING_STEP))
-                .putInt(k + "diff", difficulty)
-                .putLong(k + "play", playSeconds)
-                .putLong(k + "at", System.currentTimeMillis())
-                .apply();
+        SlotData d = new SlotData();
+        d.step = clamp(step, 1, ChapterData.ENDING_STEP);
+        d.difficulty = difficulty;
+        d.playSeconds = playSeconds;
+        d.savedAt = System.currentTimeMillis();
+        removeLegacy(sp.edit(), index).putString(jsonKey(index), gson.toJson(d)).apply();
     }
 
     public synchronized void delete(int index) {
         if (index < 0 || index >= SLOT_COUNT) return;
-        String k = "slot" + index + "_";
-        sp.edit()
-                .remove(k + "used").remove(k + "step").remove(k + "diff")
-                .remove(k + "play").remove(k + "at")
-                .apply();
+        removeLegacy(sp.edit(), index).remove(jsonKey(index)).apply();
     }
 
     public synchronized boolean hasAnySlot() {
         for (int i = 0; i < SLOT_COUNT; i++) {
-            if (sp.getBoolean("slot" + i + "_used", false)) return true;
+            if (load(i) != null) return true;
         }
         return false;
     }
