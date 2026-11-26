@@ -44,6 +44,8 @@ public final class Screens {
     public static final float[] TITLE_HOWTO = {414f, 280f, 520f, 338f};
     /** 전적 화면 — 뒤로 */
     public static final float[] RECORDS_BACK = {60f, 474f, 200f, 518f};
+    /** 전적 화면 — AI 가 배운 습관 지우기 */
+    public static final float[] RECORDS_RESET_AI = {720f, 474f, 900f, 518f};
     /** 타이틀 오른쪽 위 — 소리 켜기/끄기 */
     public static final float[] TITLE_SOUND = {790f, 12f, 920f, 46f};
     /** 타이틀 오른쪽 위 — 진동 켜기/끄기 */
@@ -446,11 +448,24 @@ public final class Screens {
     // ==================================================================
     //  전적 — Room 데이터베이스에 쌓인 전투 기록
     // ==================================================================
+    /** 전적 화면 아래 — 적 AI 가 배운 내 습관과 초기화 버튼 */
+    private static void drawAiHabits(Canvas c, Draw d, com.example.trojanprototype.ai.PlayerModel m) {
+        if (m == null) return;
+        d.text(c, "적 AI 가 배운 내 습관 (관찰 " + m.samples + "회)", 222f, 488f, 11f,
+                Theme.TEXT_DIM, Draw.LEFT, false);
+        d.text(c, "방어 " + Math.round(m.guardRate * 100f) + "%  ·  회피 "
+                        + Math.round(m.dodgeRate * 100f) + "%  ·  공격 "
+                        + Math.round(m.aggression * 100f) + "%",
+                222f, 510f, 15f, Theme.TEXT_GOLD, Draw.LEFT, true);
+        BattleRenderer.menuButton(c, d, RECORDS_RESET_AI, "AI 학습 초기화", false);
+    }
+
     private static final java.text.SimpleDateFormat RECORD_DATE =
             new java.text.SimpleDateFormat("MM.dd HH:mm", java.util.Locale.KOREA);
 
     public static void drawRecords(Canvas c, Draw d, float time,
-                                   com.example.trojanprototype.data.record.RecordRepository.Snapshot s) {
+                                   com.example.trojanprototype.data.record.RecordRepository.Snapshot s,
+                                   com.example.trojanprototype.ai.PlayerModel model) {
         Backdrop.draw(c, d, Backdrop.NIGHT_GATE, time, 0f);
         d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xDD050302);
         topBar(c, d, "전적");
@@ -459,7 +474,8 @@ public final class Screens {
 
         if (s == null) {
             d.text(c, "기록을 불러오는 중…", 480f, 280f, 18f, Theme.TEXT_DIM, Draw.CENTER, false);
-            BattleRenderer.menuButton(c, d, RECORDS_BACK, "← 뒤로", false);
+            drawAiHabits(c, d, model);
+        BattleRenderer.menuButton(c, d, RECORDS_BACK, "← 뒤로", false);
             return;
         }
 
@@ -518,6 +534,7 @@ public final class Screens {
                     Theme.TEXT_DIM, Draw.RIGHT, false);
         }
 
+        drawAiHabits(c, d, model);
         BattleRenderer.menuButton(c, d, RECORDS_BACK, "← 뒤로", false);
     }
 

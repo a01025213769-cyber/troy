@@ -3,6 +3,7 @@ package com.example.trojanprototype.battle;
 import android.graphics.RectF;
 
 import com.example.trojanprototype.ai.EnemyBrain;
+import com.example.trojanprototype.ai.PlayerModel;
 import com.example.trojanprototype.audio.SoundManager;
 import com.example.trojanprototype.core.TouchInput;
 import com.example.trojanprototype.data.GameData;
@@ -86,6 +87,11 @@ public class BattleWorld {
     public final Fighter enemy = new Fighter();
     /** 적 대장의 AI (AI 디버그 패널이 읽습니다) */
     public final EnemyBrain brain = new EnemyBrain();
+    /**
+     * 플레이어 습관 모델 — 적 대장 AI 만 이걸 보고 전략을 바꿉니다.
+     * GameEngine 이 저장된 값을 불러와 넣어 주며, 전투가 바뀌어도 같은 모델을 계속 씁니다.
+     */
+    public PlayerModel model = null;
 
     // ------------------------------------------------ 군대
     public static final int MAX_UNITS = 12;
@@ -225,6 +231,8 @@ public class BattleWorld {
         if (armyMode) enemy.lane = GameData.TROY_CMDR_LANE;
 
         brain.configure(diff, st.boss, st.enemyLight, st.enemyHeavy);
+        brain.model = model;
+        if (model != null) model.resetBattle();
 
         // --- 편성
         unitCount = 0;
@@ -374,6 +382,8 @@ public class BattleWorld {
                 updateUnits(dt);
                 separate();
                 checkLandings();
+                // 적 대장 AI 가 플레이어의 대응 습관을 관찰합니다.
+                if (model != null) model.observe(dt, player, enemy);
 
                 for (int i = 0; i < unitCount; i++) tryHit(units[i]);
                 updateArrows(dt);

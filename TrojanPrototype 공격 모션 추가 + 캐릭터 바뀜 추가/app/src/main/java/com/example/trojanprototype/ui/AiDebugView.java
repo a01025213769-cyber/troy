@@ -4,6 +4,7 @@ import android.graphics.Canvas;
 import android.graphics.RectF;
 
 import com.example.trojanprototype.ai.EnemyBrain;
+import com.example.trojanprototype.ai.PlayerModel;
 import com.example.trojanprototype.battle.BattleWorld;
 import com.example.trojanprototype.battle.Fighter;
 import com.example.trojanprototype.util.Draw;
@@ -17,6 +18,7 @@ import com.example.trojanprototype.util.Draw;
  * - 7가지 행동의 점수를 막대로 비교해서 보여 주고
  * - 지금 고른 행동과 그 이유를 한 줄로 설명하고
  * - 공격/몸통 판정 상자를 눈에 보이게 그립니다.
+ * - 적이 배운 플레이어 습관(방어·회피·공격)과, 그 학습 때문에 판단이 바뀌었는지 보여 줍니다.
  *
  * "왜 이 적이 지금 막았는가?" 를 숫자로 설명할 수 있어서
  * 수업 시연에서 AI 동작을 그대로 보여 주기 좋습니다.
@@ -88,15 +90,33 @@ public final class AiDebugView {
         float tx = 496f;
         d.text(c, "인식", tx, BAR_BASE - 40f, 12f, Theme.TEXT_DIM, Draw.LEFT, true);
         flag(c, d, tx + 42f, BAR_BASE - 44f, "상대 공격", brain.sawIncoming);
-        flag(c, d, tx + 152f, BAR_BASE - 44f, "상대 빈틈", brain.sawOpening);
+        flag(c, d, tx + 146f, BAR_BASE - 44f, "상대 빈틈", brain.sawOpening);
+        flag(c, d, tx + 250f, BAR_BASE - 44f, "학습 반영", brain.learnedChoice);
 
         d.text(c, "판단 근거", tx, BAR_BASE - 12f, 12f, Theme.TEXT_DIM, Draw.LEFT, true);
-        d.text(c, brain.reason, tx + 70f, BAR_BASE - 12f, 14f, 0xFF9FE8C8, Draw.LEFT, true);
+        d.text(c, brain.reason, tx + 70f, BAR_BASE - 12f, 14f,
+                brain.learnedChoice ? 0xFFFFD98A : 0xFF9FE8C8, Draw.LEFT, true);
 
-        d.text(c, "플레이어 상태: " + stateName(w.player.state), tx, BAR_BASE + 13f, 11f,
-                Theme.TEXT_DIM, Draw.LEFT, false);
-        d.text(c, "적 상태: " + stateName(w.enemy.state), tx + 200f, BAR_BASE + 13f, 11f,
-                Theme.TEXT_DIM, Draw.LEFT, false);
+        // ---------- 맨 아래: 지금까지 배운 플레이어 습관 ----------
+        PlayerModel m = w.model;
+        if (m != null) {
+            float y = BAR_BASE + 12f;
+            d.text(c, "학습한 습관", tx, y + 1f, 11f, Theme.TEXT_DIM, Draw.LEFT, true);
+            habit(c, d, tx + 66f, y, "방어", m.guardRate);
+            habit(c, d, tx + 170f, y, "회피", m.dodgeRate);
+            habit(c, d, tx + 274f, y, "공격", m.aggression);
+            d.text(c, "관찰 " + m.samples + "회", 930f, y + 1f, 10f, Theme.TEXT_DIM, Draw.RIGHT, false);
+        }
+    }
+
+    /** 습관 하나 — 이름, 작은 막대, 퍼센트 */
+    private static void habit(Canvas c, Draw d, float x, float y, String label, float v) {
+        d.text(c, label, x, y + 1f, 11f, Theme.TEXT, Draw.LEFT, true);
+        float bx = x + 28f;
+        float bw = 46f;
+        d.round(c, bx, y - 7f, bx + bw, y - 1f, 2f, 0x55334455);
+        d.round(c, bx, y - 7f, bx + bw * Draw.clamp(v, 0f, 1f), y - 1f, 2f, 0xFF7FE0B0);
+        d.text(c, Math.round(v * 100f) + "%", bx + bw + 4f, y + 1f, 10f, 0xFFBCE8D6, Draw.LEFT, false);
     }
 
     /** 전투 무대 위에 충돌 판정 상자를 그립니다. */

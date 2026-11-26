@@ -1,5 +1,6 @@
 package sim;
 
+import com.example.trojanprototype.ai.PlayerModel;
 import com.example.trojanprototype.audio.SoundManager;
 import com.example.trojanprototype.battle.BattleWorld;
 import com.example.trojanprototype.battle.Fighter;
@@ -17,6 +18,7 @@ import java.util.Random;
  *   novice  0.40초 · 방어 30% · 회피 15%
  *   average 0.28초 · 방어 60% · 회피 45%
  *   skilled 0.20초 · 방어 85% · 회피 75%
+ *   turtle  0.15초 · 방어 100% · 공격은 가끔 (방어만 하는 플레이어)
  *
  * 한계: 실제 사람은 상대 패턴을 배워 전략을 바꾸지만 이 플레이어는 바꾸지 않습니다.
  * (예: 방어만 하다가 가드 브레이크를 계속 맞는 경우) 그래서 절대값보다는
@@ -40,13 +42,16 @@ public class Sim {
             new Skill("novice", 0.40f, 0.30f, 0.15f, 4f, 0.7f),
             new Skill("average", 0.28f, 0.60f, 0.45f, 6f, 0.95f),
             new Skill("skilled", 0.20f, 0.85f, 0.75f, 7f, 1f),
+            // 방어만 굳히는 플레이어 — 적이 습관을 배워 가드 브레이크로 대응하는지 확인용
+            new Skill("turtle", 0.15f, 1.0f, 0.0f, 1.5f, 1f),
     };
 
     final Random rnd = new Random();
 
     /** returns {win(1/0), hp ratio left, seconds} */
-    float[] fight(int stage, int diff, Skill sk) {
+    float[] fight(int stage, int diff, Skill sk, PlayerModel model) {
         BattleWorld w = new BattleWorld();
+        w.model = model;
         GameData.StageDef st = GameData.STAGES[stage];
         w.start(st.hero, st, GameData.DIFFICULTIES[diff], new Assets(), new SoundManager(), "");
         TouchInput in = new TouchInput();
@@ -127,18 +132,26 @@ public class Sim {
 
     public static void main(String[] a) {
         int n = a.length > 0 ? Integer.parseInt(a[0]) : 80;
+        // 두 번째 인자로 nolearn 을 주면 적의 습관 학습을 끄고 잽니다.
+        boolean learn = !(a.length > 1 && a[1].equals("nolearn"));
         Sim s = new Sim();
-        System.out.println("stage      diff  skill    win%  hpLeft%  time(s)");
+        System.out.println("learning " + (learn ? "ON" : "OFF")
+                + "  (learned = guard/dodge/aggression the enemy learned about that player)");
+        System.out.println("stage      diff  skill    win%  hpLeft%  time(s)  learned");
         for (int st = 0; st < GameData.STAGES.length; st++) {
             for (int d = 0; d < GameData.DIFFICULTIES.length; d++) {
                 for (Skill sk : SKILLS) {
                     float wins = 0, hp = 0, tm = 0;
+                    // 한 플레이어가 같은 스테이지를 n 번 하는 것처럼 모델을 이어서 씁니다.
+                    PlayerModel model = learn ? new PlayerModel() : null;
                     for (int k = 0; k < n; k++) {
-                        float[] r = s.fight(st, d, sk);
+                        float[] r = s.fight(st, d, sk, model);
                         wins += r[0]; hp += r[1]; tm += r[2];
                     }
-                    System.out.printf("%-10s %-5s %-8s %4.0f  %6.0f  %6.0f%n", GameData.STAGES[st].chapter,
-                            "d" + d, sk.name, 100 * wins / n, 100 * hp / n, tm / n);
+                    String learned = model == null ? "-" : String.format("%.2f/%.2f/%.2f",
+                            model.guardRate, model.dodgeRate, model.aggression);
+                    System.out.printf("%-10s %-5s %-8s %4.0f  %6.0f  %6.0f  %s%n", GameData.STAGES[st].chapter,
+                            "d" + d, sk.name, 100 * wins / n, 100 * hp / n, tm / n, learned);
                 }
             }
         }

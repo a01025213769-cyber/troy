@@ -3,6 +3,7 @@
 #
 #   sh tools/balance_sim/run.sh          # 칸마다 150판
 #   sh tools/balance_sim/run.sh 300      # 칸마다 300판
+#   sh tools/balance_sim/run.sh 150 nolearn   # 적의 습관 학습을 끄고 비교
 #
 # 실제 게임 코드(BattleWorld · Fighter · EnemyBrain · GameData)를 그대로 가져와
 # 안드로이드 없이 컴퓨터에서 컴파일하고, 사람처럼 반응이 늦는 가상 플레이어로
@@ -32,7 +33,7 @@ cp -r "$HERE/stub/"* "$WORK/src/"
 P=com/example/trojanprototype
 mkdir -p "$WORK/src/$P/battle" "$WORK/src/$P/ai" "$WORK/src/$P/data" "$WORK/src/$P/ui" "$WORK/src/$P/util"
 cp "$SRC/$P/battle/BattleWorld.java" "$SRC/$P/battle/Fighter.java" "$WORK/src/$P/battle/"
-cp "$SRC/$P/ai/EnemyBrain.java" "$WORK/src/$P/ai/"
+cp "$SRC/$P/ai/EnemyBrain.java" "$SRC/$P/ai/PlayerModel.java" "$WORK/src/$P/ai/"
 cp "$SRC/$P/data/GameData.java" "$WORK/src/$P/data/"
 cp "$SRC/$P/ui/Theme.java" "$WORK/src/$P/ui/"
 cp "$SRC/$P/util/SpriteSet.java" "$WORK/src/$P/util/"
@@ -41,5 +42,5 @@ cd "$WORK/src" || exit 1
 find . -name '*.java' > ../files.txt
 "$J/javac" -encoding UTF-8 -nowarn -d ../build @../files.txt || exit 1
 cd "$WORK" || exit 1
-"$J/java" -cp build sim.Sim "$N"
+"$J/java" -cp build sim.Sim "$N" "$2"
 cd "$HERE" && rm -rf "$WORK"

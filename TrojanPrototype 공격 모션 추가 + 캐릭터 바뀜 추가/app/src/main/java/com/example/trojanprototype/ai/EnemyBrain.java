@@ -27,6 +27,10 @@ import java.util.Random;
  *  AI 버튼을 누르면 위 점수와 선택 이유가 화면에 그대로 표시됩니다.
  *  (AiDebugView 가 이 클래스의 scores / chosen / reason 을 읽어 그립니다)
  *
+ *  ── 습관 학습 ─────────────────────────────────────────────
+ *  적 대장은 PlayerModel 로 플레이어의 방어·회피·공격 습관을 배우고,
+ *  그 결과를 점수에 곱해 전략을 바꿉니다 (adapt). 배운 내용은 저장되어 다음 전투에도 이어집니다.
+ *
  *  ── 왜 if-else 가 아니라 점수 방식인가 ────────────────────
  *  if-else 로 짜면 조건이 늘어날수록 분기가 폭발합니다.
  *  점수 방식은 조건을 "가중치 한 줄"로 추가할 수 있고,
@@ -66,6 +70,14 @@ public class EnemyBrain {
     public boolean sawTargetGuarding = false; // 상대가 방어를 올리고 있음
     public boolean guardTired = false;    // 너무 오래 막아서 방어 선택이 억제된 상태
     public boolean enraged = false;       // 보스 분노 상태
+
+    // ------------------------------------------------ 습관 학습
+    /** 플레이어 습관 모델. 적 대장만 연결되고 일반 병사는 null 입니다. */
+    public PlayerModel model = null;
+    /** 이번 판단이 학습 때문에 바뀌었는지 (디버그 패널의 "학습 반영") */
+    public boolean learnedChoice = false;
+    /** 상대가 방금 회피했는지 (회피 직후 빈틈) */
+    public boolean sawTargetDodging = false;
 
     // ------------------------------------------------ 내부 상태
     /** 공격 재사용 대기 시간 — 디버그 패널에서 "왜 지금 공격하지 않는가"를 설명합니다 */
@@ -107,6 +119,8 @@ public class EnemyBrain {
         targetWasAttacking = false;
         enraged = false;
         guardTired = false;
+        learnedChoice = false;
+        sawTargetDodging = false;
         for (int i = 0; i < ACT_COUNT; i++) scores[i] = 0f;
     }
 
@@ -268,12 +282,90 @@ public class EnemyBrain {
             if (scores[i] < 0f) scores[i] = 0f;
         }
 
+        // 학습한 플레이어 습관을 점수에 반영합니다. 반영 전과 후의 선택이 다르면
+        // "학습 때문에 바뀐 판단"으로 표시합니다.
+        int baseBest = argmax();
+        sawTargetDodging = false;
+        if (model != null) adapt(target, inRange, defensiveness);
+        int best = argmax();
+        chosen = best;
+        reason = buildReason(hpR);
+        learnedChoice = (model != null && best != baseBest);
+        if (learnedChoice) reason = learnedReason(best);
+    }
+
+    private int argmax() {
         int best = ACT_WAIT;
         for (int i = 1; i < ACT_COUNT; i++) {
             if (scores[i] > scores[best]) best = i;
         }
-        chosen = best;
-        reason = buildReason(hpR);
+        return best;
+    }
+
+    // ==================================================================
+    //  1-2) 습관 학습 반영
+    // ==================================================================
+    /**
+     * PlayerModel 이 배운 습관에 맞춰 행동 점수를 조정합니다.
+     * 모든 조정은 확신도(conf)를 곱하므로, 관찰이 적을 때는 거의 영향이 없습니다.
+     *
+     *   자주 막는 플레이어  → 막을 수 없는 강공격(가드 브레이크)을 미리 꺼냄
+     *   자주 피하는 플레이어 → 선딜이 긴 강공격은 줄이고, 회피 직후의 빈틈을 추격
+     *   공격적인 플레이어   → 가까우면 먼저 방어를 올렸다가 반격
+     *   소극적인 플레이어   → 다가가서 압박
+     */
+    private void adapt(Fighter target, boolean inRange, float defensiveness) {
+        float conf = model.confidence();
+        if (conf <= 0f) return;
+        float guardX = Math.max(0f, model.guardRate - 0.30f);
+        float dodgeX = Math.max(0f, model.dodgeRate - 0.22f);
+        float aggrX = Math.max(0f, model.aggression - 0.55f);
+        float passX = Math.max(0f, 0.40f - model.aggression);
+
+        // 1) 방어 습관 / 회피 습관 → 강공격 비중
+        float heavyMul = (1f + 1.6f * guardX * conf) * (1f - 0.7f * dodgeX * conf);
+        scores[ACT_HEAVY] *= heavyMul;
+
+        // 2) 회피 직후 추격 (회피 동작 중이거나, 막 끝나 아직 다시 피할 수 없을 때)
+        sawTargetDodging = target.state == Fighter.DODGE
+                || (target.dodgeCooldown > 0.1f && target.state != Fighter.ATTACK
+                && target.state != Fighter.GUARD);
+        if (sawTargetDodging && dodgeX > 0f) {
+            float m = 1f + 2.0f * dodgeX * conf;
+            scores[ACT_ATTACK] *= m;
+            scores[ACT_APPROACH] *= m;
+        }
+
+        // 3) 공격적인 상대 → 상대가 아직 휘두르지 않았어도 미리 방어
+        if (inRange && aggrX > 0f && !sawIncoming) {
+            float pre = (0.5f + 0.4f * defensiveness) * aggrX * 2.2f * conf
+                    * (guardTired ? 0.12f : 1f);
+            if (pre > scores[ACT_GUARD]) scores[ACT_GUARD] = pre;
+        }
+
+        // 4) 소극적인 상대 → 압박
+        if (passX > 0f) {
+            float m = 1f + 1.5f * passX * conf;
+            scores[ACT_APPROACH] *= m;
+            scores[ACT_ATTACK] *= m;
+        }
+    }
+
+    private String learnedReason(int best) {
+        switch (best) {
+            case ACT_HEAVY:
+                return "학습: 자주 막는 상대 → 강공격";
+            case ACT_GUARD:
+                return "학습: 공격적인 상대 → 먼저 방어";
+            case ACT_ATTACK:
+            case ACT_APPROACH:
+                if (sawTargetDodging && model.dodgeRate > 0.22f) return "학습: 회피 직후 빈틈 → 추격";
+                if (model.aggression < 0.40f) return "학습: 소극적인 상대 → 압박";
+                return "학습 반영 → " + ACTION_NAMES[best];
+            default:
+                if (model.dodgeRate > 0.22f) return "학습: 자주 피하는 상대 → 강공격 자제";
+                return "학습 반영 → " + ACTION_NAMES[best];
+        }
     }
 
     private String buildReason(float hpR) {

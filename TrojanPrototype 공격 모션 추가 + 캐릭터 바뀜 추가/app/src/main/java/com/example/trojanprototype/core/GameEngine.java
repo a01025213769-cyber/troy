@@ -8,6 +8,8 @@ import com.example.trojanprototype.battle.BattleWorld;
 import com.example.trojanprototype.data.ChapterData;
 import com.example.trojanprototype.data.GameData;
 import com.example.trojanprototype.data.SaveManager;
+import com.example.trojanprototype.data.AiMemory;
+import com.example.trojanprototype.ai.PlayerModel;
 import com.example.trojanprototype.data.StoryData;
 import com.example.trojanprototype.data.record.BattleRecord;
 import com.example.trojanprototype.data.record.RecordRepository;
@@ -76,6 +78,9 @@ public class GameEngine {
     private final LottieFx fx;
     /** 폰 흔들기 감지 (가속도 센서) — 전투 중 흔들면 필살기 */
     private final ShakeDetector shake;
+    /** 적 AI 가 배운 플레이어 습관 (전투가 바뀌어도 같은 모델) + 저장소 */
+    private final PlayerModel playerModel = new PlayerModel();
+    private final AiMemory aiMemory;
 
     private final Assets assets;
     private final SoundManager sound;
@@ -130,6 +135,9 @@ public class GameEngine {
         this.world.setHaptics(haptics);
         this.fx = new LottieFx(ctx, assets);
         this.shake = new ShakeDetector(ctx);
+        this.aiMemory = new AiMemory(ctx);
+        aiMemory.load(playerModel);
+        world.model = playerModel;
         VirtualPad.shakeHint = shake.isAvailable() && shake.isOn();
         this.cleared = save.cleared();
         refreshSlots();
@@ -561,6 +569,7 @@ public class GameEngine {
 
         if (world.finished) {
             saveRecord();
+            aiMemory.save(playerModel);     // 이번 전투에서 배운 습관을 저장
             if (world.result == BattleWorld.RESULT_WIN) {
                 // 전투 챕터는 이겨야 클리어 — 다음 챕터가 열리고, 슬롯 플레이면 자동 저장됩니다.
                 onChapterCleared(stageIndex + 1, Math.min(flowStep + 1, ChapterData.ENDING_STEP));
@@ -589,6 +598,13 @@ public class GameEngine {
                 Screens.RECORDS_BACK[2], Screens.RECORDS_BACK[3])) {
             sound.play("sfx_select");
             setScene(SCENE_TITLE);
+            return;
+        }
+        if (input.consumeTapIn(Screens.RECORDS_RESET_AI[0], Screens.RECORDS_RESET_AI[1],
+                Screens.RECORDS_RESET_AI[2], Screens.RECORDS_RESET_AI[3])) {
+            sound.play("sfx_select");
+            aiMemory.clear(playerModel);
+            toast("AI 가 배운 습관을 지웠습니다");
             return;
         }
         input.consumeTap();
@@ -762,7 +778,7 @@ public class GameEngine {
                 Screens.drawChapters(c, d, sceneTime, cleared);
                 break;
             case SCENE_RECORDS:
-                Screens.drawRecords(c, d, sceneTime, records.snapshot());
+                Screens.drawRecords(c, d, sceneTime, records.snapshot(), playerModel);
                 break;
             case SCENE_STORY:
                 Screens.drawStory(c, d, assets, story, storyShown, storyLineTime, sceneTime);
