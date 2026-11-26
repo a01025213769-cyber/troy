@@ -43,12 +43,12 @@ public final class AiDebugView {
         // ---------- 1행: 요약 ----------
         float y1 = PANEL_T + 22f;
         d.text(c, "AI 판단 과정", 38f, y1, 15f, 0xFF7FE0B0, Draw.LEFT, true);
-        d.text(c, "FSM + 유틸리티 점수 방식", 130f, y1, 12f, Theme.TEXT_DIM, Draw.LEFT, false);
+        d.text(c, w.armyMode ? "대장 AI (병사도 각자 같은 방식)" : "FSM + 유틸리티 점수 방식", 130f, y1, 12f, Theme.TEXT_DIM, Draw.LEFT, false);
 
         String act = EnemyBrain.ACTION_NAMES[clampIndex(brain.chosen)];
         d.text(c, "선택: " + act, 330f, y1, 14f, Theme.TEXT_GOLD, Draw.LEFT, true);
         d.text(c, "거리 " + (int) brain.distance + "px", 450f, y1, 13f, Theme.TEXT, Draw.LEFT, false);
-        d.text(c, "적 체력 " + (int) (w.enemy.hpRatio() * 100f) + "%", 560f, y1, 13f,
+        d.text(c, (w.armyMode ? "적 대장 체력 " : "적 체력 ") + (int) (w.enemy.hpRatio() * 100f) + "%", 560f, y1, 13f,
                 Theme.TEXT, Draw.LEFT, false);
 
         float nextIn = brain.decisionTimer < 0f ? 0f : brain.decisionTimer;
@@ -101,10 +101,12 @@ public final class AiDebugView {
 
     /** 전투 무대 위에 충돌 판정 상자를 그립니다. */
     public static void drawHitboxes(Canvas c, Draw d, BattleWorld w) {
-        box(c, d, w.player.bodyBox(), 0x883FA0D8);
-        box(c, d, w.enemy.bodyBox(), 0x88D86B5A);
-        box(c, d, w.player.attackBox(), 0xDDFFD36B);
-        box(c, d, w.enemy.attackBox(), 0xDDFF7A5A);
+        for (int i = 0; i < w.unitCount; i++) {
+            Fighter u = w.units[i];
+            if (!u.isAlive()) continue;
+            box(c, d, u.bodyBox(), u.team == 0 ? 0x883FA0D8 : 0x88D86B5A);
+            box(c, d, u.attackBox(), u.team == 0 ? 0xDDFFD36B : 0xDDFF7A5A);
+        }
     }
 
     private static void box(Canvas c, Draw d, RectF r, int color) {

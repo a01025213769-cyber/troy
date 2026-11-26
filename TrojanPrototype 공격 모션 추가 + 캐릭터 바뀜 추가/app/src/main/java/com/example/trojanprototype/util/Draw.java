@@ -5,6 +5,8 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 
@@ -137,11 +139,106 @@ public class Draw {
         return p.measureText(s);
     }
 
+
+    // ---------------------------------------------------------- 카드 / 패널
+    /**
+     * 어두운 면 + 얇은 금테 + 안쪽 보조선으로 이루어진 패널.
+     * 모서리는 거의 각지게(반지름 4) 두어 석조·청동 느낌을 냅니다.
+     */
+    public void panel(Canvas c, float l, float t, float rt, float b, int fill) {
+        round(c, l, t, rt, b, 4f, fill);
+        roundStroke(c, l, t, rt, b, 4f, 1.4f, 0xCCB8914F);
+        roundStroke(c, l + 4f, t + 4f, rt - 4f, b - 4f, 2f, 1f, 0x33E6C98D);
+    }
+
+    /**
+     * 메뉴 카드. 왼쪽이 어둡고 오른쪽으로 갈수록 투명해지는 면에
+     * 금테를 두릅니다. accent 가 true 면 왼쪽에 굵은 금빛 띠를 붙여 강조합니다.
+     */
+    public void card(Canvas c, float l, float t, float rt, float b, boolean accent) {
+        int steps = 10;
+        float w = (rt - l) / steps;
+        for (int i = 0; i < steps; i++) {
+            int a = 232 - i * 12;
+            rect(c, l + i * w, t, l + (i + 1) * w + 1f, b, withAlpha(0xFF0C0806, a));
+        }
+        roundStroke(c, l, t, rt, b, 3f, 1.3f, accent ? 0xFFD8B570 : 0x99B8914F);
+        if (accent) {
+            rect(c, l, t, l + 4f, b, 0xFFD8B570);
+        }
+    }
+
+    /** 오른쪽을 가리키는 작은 화살표 ( > ) */
+    public void chevron(Canvas c, float x, float y, float size, int color) {
+        line(c, x - size * 0.5f, y - size, x + size * 0.5f, y, 2.2f, color);
+        line(c, x + size * 0.5f, y, x - size * 0.5f, y + size, 2.2f, color);
+    }
+
+    /** 가장자리를 어둡게 눌러 주는 비네트 (화면 전체) */
+    public void vignette(Canvas c, float w, float h) {
+        int steps = 9;
+        for (int i = 0; i < steps; i++) {
+            int a = (int) (120 * (1f - i / (float) steps) * (1f - i / (float) steps));
+            float e = i * 16f;
+            int col = withAlpha(0xFF000000, a);
+            rect(c, 0f, e, w, e + 16f, col);
+            rect(c, 0f, h - e - 16f, w, h - e, col);
+            rect(c, e, 0f, e + 16f, h, withAlpha(0xFF000000, a * 3 / 4));
+            rect(c, w - e - 16f, 0f, w - e, h, withAlpha(0xFF000000, a * 3 / 4));
+        }
+    }
+
+    /** 글자 사이를 벌려서 그립니다 (로고·소제목용) */
+    public void spaced(Canvas c, String s, float x, float y, float size, int color,
+                       int align, boolean bold, float gap) {
+        if (s == null || s.length() == 0) return;
+        float total = 0f;
+        float[] ws = new float[s.length()];
+        for (int i = 0; i < s.length(); i++) {
+            ws[i] = textWidth(String.valueOf(s.charAt(i)), size, bold);
+            total += ws[i] + (i < s.length() - 1 ? gap : 0f);
+        }
+        float cx = align == CENTER ? x - total * 0.5f : align == RIGHT ? x - total : x;
+        for (int i = 0; i < s.length(); i++) {
+            text(c, String.valueOf(s.charAt(i)), cx, y, size, color, LEFT, bold);
+            cx += ws[i] + gap;
+        }
+    }
+
     // ---------------------------------------------------------- 비트맵
     /** 스프라이트를 지정한 사각형에 맞춰 그립니다. alpha 는 0~255. */
     public void bitmap(Canvas c, Bitmap b, float l, float t, float rt, float bt, int alpha) {
         if (b == null) return;
         bmpPaint.setAlpha(alpha);
+        r.set(l, t, rt, bt);
+        c.drawBitmap(b, null, r, bmpPaint);
+    }
+
+    private final Paint tintPaint = new Paint();
+    private int tintColor = 0;
+
+    /**
+     * 스프라이트 모양 그대로 한 가지 색으로 칠해 그립니다.
+     * (맞았을 때 하얗게 번쩍임 · 잔상 등. 투명한 부분은 칠하지 않습니다)
+     * color 의 알파 값이 그대로 진하기가 됩니다.
+     */
+    public void bitmapTint(Canvas c, Bitmap b, float l, float t, float rt, float bt, int color) {
+        if (b == null) return;
+        int opaque = color | 0xFF000000;
+        if (tintColor != opaque || tintPaint.getColorFilter() == null) {
+            tintColor = opaque;
+            tintPaint.setColorFilter(new PorterDuffColorFilter(opaque, PorterDuff.Mode.SRC_IN));
+        }
+        tintPaint.setFilterBitmap(false);
+        tintPaint.setAlpha((color >>> 24) & 0xFF);
+        r.set(l, t, rt, bt);
+        c.drawBitmap(b, null, r, tintPaint);
+    }
+
+    /** 배경 그림처럼 큰 비트맵을 그립니다. 픽셀 느낌을 살리려고 보간하지 않습니다. */
+    public void bitmapRect(Canvas c, Bitmap b, float l, float t, float rt, float bt) {
+        if (b == null) return;
+        bmpPaint.setAlpha(255);
         r.set(l, t, rt, bt);
         c.drawBitmap(b, null, r, bmpPaint);
     }

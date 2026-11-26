@@ -2,6 +2,7 @@ package com.example.trojanprototype.ai;
 
 import com.example.trojanprototype.battle.Fighter;
 import com.example.trojanprototype.data.GameData;
+import com.example.trojanprototype.ui.Theme;
 
 import java.util.Random;
 
@@ -215,6 +216,13 @@ public class EnemyBrain {
         scores[ACT_RETREAT] = lowHp * (0.4f + defensiveness)
                 + (tooClose ? 0.22f : 0f)
                 - (enraged ? 0.4f : 0f);
+
+        // 궁수는 적이 가까이 붙으면 뒤로 물러나며 거리를 벌려 쏩니다.
+        // (벽에 등이 닿았으면 물러날 수 없으니 그 자리에서 쏩니다)
+        if (lightMove != null && lightMove.ranged && distance < 170f
+                && self.x > Theme.ARENA_LEFT + 40f && self.x < Theme.ARENA_RIGHT - 40f) {
+            scores[ACT_RETREAT] += 1.3f;
+        }
 
         // --- 공격: 사거리 안 + 쿨타임 끝. 상대 빈틈이나 막아 낸 직후면 크게 상승
         scores[ACT_ATTACK] = (inRange && attackCooldown <= 0f)

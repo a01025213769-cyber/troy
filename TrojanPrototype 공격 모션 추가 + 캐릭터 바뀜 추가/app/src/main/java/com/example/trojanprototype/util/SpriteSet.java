@@ -52,6 +52,14 @@ public class SpriteSet {
     /** 프레임이 없을 때 쓰는 한 장짜리 기본 그림 */
     public Bitmap base;
 
+    /**
+     * (선택) 피격 전용 그림 <이름>_hurt.png 와 쓰러짐 전용 그림 <이름>_down.png.
+     * 없으면 null 이고, 그때는 대기 프레임을 젖히고 눕히는 변형으로 표현합니다.
+     * 그림을 넣기만 하면 코드 수정 없이 바로 쓰입니다. (같은 캔버스 크기, 발이 캔버스 아래)
+     */
+    public Bitmap hurt;
+    public Bitmap down;
+
     /** 프레임 캔버스 크기 */
     public int canvasW = 1;
     public int canvasH = 1;

@@ -66,6 +66,9 @@ public class Assets {
             set.frames[i] = f;
             if (f != null) set.animated = true;
         }
+        // 선택 그림 — 있으면 피격 / 쓰러짐 동작에 그대로 쓰입니다.
+        set.hurt = sprite(name + "_hurt");
+        set.down = sprite(name + "_down");
 
         // 기준이 될 프레임: 대기(f0) 우선, 없으면 기본 그림
         Bitmap ref = set.frames[SpriteSet.F_IDLE_A];

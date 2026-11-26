@@ -18,18 +18,23 @@ import com.example.trojanprototype.util.SpriteSet;
  * BattleWorld 는 "계산"만 하고, 이 파일은 "그리기"만 합니다.
  * 두 가지를 나눠 두면 연출을 바꿔도 게임 규칙이 깨지지 않습니다.
  *
- * 스프라이트가 한 장짜리 그림이라, 걷기/공격 동작은
- * 기울이기·늘이기·흔들기 같은 변형으로 표현합니다.
- * 나중에 심신이 프레임 애니메이션을 만들면 drawFighter() 안만 바꾸면 됩니다.
+ * 동작 프레임(f0~f15)을 고르고, 그 위에 기울이기·늘이기·회전 같은 변형을 더해 움직임을 냅니다.
+ *   · 피격    맞는 순간 뒤로 젖혀졌다 돌아옴 (센 공격일수록 크게), 그림 모양대로 하얗게 번쩍
+ *   · 가드 브레이크  비틀거림
+ *   · 쓰러짐  뒤로 넘어가며 점점 빨라지고 바닥에서 한 번 튕김 (+ 흙먼지는 BattleWorld)
+ *   · 회피 / 돌진 / 필살기  지나온 자리에 잔상
+ *   · 막을 수 없는 공격을 준비하는 적은 붉게 달아오름 (회피하라는 신호)
+ * 피격·쓰러짐 전용 그림(<이름>_hurt, <이름>_down)을 넣으면 변형 대신 그 그림을 씁니다.
  */
 public final class BattleRenderer {
 
     private BattleRenderer() {}
 
     // 일시정지 창의 버튼 위치 — GameEngine 도 이 값을 그대로 씁니다.
-    public static final float[] PAUSE_RESUME = {350f, 212f, 610f, 264f};
-    public static final float[] PAUSE_RETRY = {350f, 276f, 610f, 328f};
-    public static final float[] PAUSE_TITLE = {350f, 340f, 610f, 392f};
+    public static final float[] PAUSE_RESUME = {350f, 190f, 610f, 238f};
+    public static final float[] PAUSE_RETRY = {350f, 248f, 610f, 296f};
+    public static final float[] PAUSE_SAVE = {350f, 306f, 610f, 354f};
+    public static final float[] PAUSE_TITLE = {350f, 364f, 610f, 412f};
 
     public static void draw(Canvas c, Draw d, BattleWorld w, TouchInput in,
                             boolean aiDebug, boolean paused) {
@@ -46,14 +51,21 @@ public final class BattleRenderer {
         Backdrop.draw(c, d, w.stage == null ? 0 : w.stage.backdrop, w.elapsed, parallax);
 
         // ---------- 캐릭터 ----------
-        // 뒤쪽(화면 위)에 있는 쪽을 먼저 그려 겹침이 자연스럽게 보이도록
-        if (w.player.x <= w.enemy.x) {
-            drawFighter(c, d, w.enemy);
-            drawFighter(c, d, w.player);
-        } else {
-            drawFighter(c, d, w.player);
-            drawFighter(c, d, w.enemy);
+        // 뒤쪽(화면 위, lane 이 작은 쪽)에 있는 병사를 먼저 그려 겹침이 자연스럽게 보이도록.
+        // 쓰러진 병사는 바닥에 깔리므로 가장 먼저 그립니다.
+        int n = w.unitCount;
+        for (int i = 0; i < n; i++) order[i] = w.units[i];
+        for (int i = 1; i < n; i++) {
+            Fighter key = order[i];
+            int j = i - 1;
+            while (j >= 0 && drawsAfter(order[j], key)) {
+                order[j + 1] = order[j];
+                j--;
+            }
+            order[j + 1] = key;
         }
+        for (int i = 0; i < n; i++) drawFighter(c, d, order[i]);
+        for (int i = 0; i < n; i++) drawTag(c, d, order[i], w);
 
         drawArrows(c, d, w);
         drawEffects(c, d, w);
@@ -83,6 +95,46 @@ public final class BattleRenderer {
     // ==================================================================
     //  캐릭터
     // ==================================================================
+    private static final Fighter[] order = new Fighter[BattleWorld.MAX_UNITS];
+
+    /** a 를 b 보다 나중에(앞에) 그려야 하면 true */
+    private static boolean drawsAfter(Fighter a, Fighter b) {
+        boolean ad = !a.isAlive(), bd = !b.isAlive();
+        if (ad != bd) return !ad;           // 쓰러진 쪽을 먼저
+        if (a.lane != b.lane) return a.lane > b.lane;
+        return a.x > b.x;
+    }
+
+    /** 병사 머리 위 체력바와 대장 표시 */
+    private static void drawTag(Canvas c, Draw d, Fighter f, BattleWorld w) {
+        if (!f.isAlive() || !w.armyMode) return;
+        float bob = 0f;
+        float topY = Theme.GROUND + f.lane - f.spriteHeight - 16f;
+        float cx = f.x;
+
+        if (f.commander) {
+            // 대장: 이름표 + 넓은 체력바 + 아래를 가리키는 표식
+            boolean mine = (f.team == 0);
+            int col = mine ? Theme.GREEK : Theme.TROY;
+            float bw = 70f;
+            d.round(c, cx - bw * 0.5f, topY - 6f, cx + bw * 0.5f, topY + 4f, 3f, Theme.HP_BACK);
+            d.round(c, cx - bw * 0.5f, topY - 6f,
+                    cx - bw * 0.5f + bw * Draw.clamp(f.hpRatio(), 0f, 1f), topY + 4f, 3f,
+                    mine ? Theme.HP_PLAYER : Theme.HP_ENEMY);
+            d.roundStroke(c, cx - bw * 0.5f, topY - 6f, cx + bw * 0.5f, topY + 4f, 3f, 1f, 0x88FFFFFF);
+            d.text(c, mine ? "대장 (나)" : "적 대장", cx, topY - 12f, 12f,
+                    mine ? Theme.TEXT_GOLD : 0xFFFF9C6B, Draw.CENTER, true);
+            d.triangle(c, cx, topY - 24f + 0f, cx - 6f, topY - 34f, cx + 6f, topY - 34f, col);
+            return;
+        }
+
+        float bw = 38f;
+        d.round(c, cx - bw * 0.5f, topY, cx + bw * 0.5f, topY + 5f, 2f, 0xAA120D0A);
+        d.round(c, cx - bw * 0.5f, topY,
+                cx - bw * 0.5f + bw * Draw.clamp(f.hpRatio(), 0f, 1f), topY + 5f, 2f,
+                f.team == 0 ? Theme.HP_PLAYER : Theme.HP_ENEMY);
+    }
+
     /**
      * 캐릭터 상태에 맞는 동작 프레임을 고릅니다.
      * (f0 대기 / f1 대기2 / f2 걷기 / f3 달리기 / f4 공격 / f5 방어)
@@ -150,8 +202,18 @@ public final class BattleRenderer {
     }
 
     private static void drawFighter(Canvas c, Draw d, Fighter f) {
+        // 앞뒤 줄(lane)만큼 아래로 내려 그립니다.
+        int outer = c.save();
+        c.translate(0f, f.lane);
+
         SpriteSet ss = f.sprites;
-        Bitmap bmp = (ss == null) ? null : ss.frame(frameFor(f));
+        // 피격 / 쓰러짐 전용 그림이 있으면 그것을, 없으면 동작 프레임을 변형해서 씁니다.
+        boolean customHurt = ss != null && ss.hurt != null && f.state == Fighter.HURT;
+        boolean customDown = ss != null && ss.down != null && f.state == Fighter.DOWN;
+        Bitmap bmp = (ss == null) ? null
+                : customHurt ? ss.hurt
+                : customDown ? ss.down
+                : ss.frame(frameFor(f));
 
         // 프레임 캔버스를 통째로 그립니다.
         //  · 캔버스 아래 = 바닥선
@@ -217,18 +279,52 @@ public final class BattleRenderer {
                 lean = -10f;
                 alpha = f.isInvincible() ? 140 : 235;
                 break;
-            case Fighter.HURT:
-                lean = -13f;
-                scaleX = 0.97f;
+            case Fighter.HURT: {
+                // 피격 — 맞는 순간 뒤로 확 젖혀졌다가 경직이 풀리며 돌아옵니다.
+                // 강한 공격(넉백이 큰 기술)일수록 크게 젖혀집니다.
+                float p = Draw.clamp(f.stateTime / Math.max(0.001f, f.hurtDuration), 0f, 1f);
+                float snap = Draw.clamp(f.stateTime / 0.04f, 0f, 1f);
+                float amt = snap * (1f - p) * (1f - p);
+                float pw = 0.5f + 0.5f * f.hurtPower;
+                if (!customHurt) rot = -(5f + 9f * pw) * amt;
+                lean = -(8f + 14f * pw) * amt
+                        + (float) Math.sin(f.stateTime * 80f) * 2.5f * (1f - p);
+                scaleX = 1f + 0.04f * amt;
+                scaleY = 1f - 0.05f * amt;
+                if (f.staggered) {
+                    // 가드 브레이크 — 방패가 튕겨 나가 비틀거립니다.
+                    rot += (float) Math.sin(f.stateTime * 14f) * 6f * (1f - p);
+                    bob = -Math.abs((float) Math.sin(f.stateTime * 14f)) * 3f * (1f - p);
+                }
                 break;
-            case Fighter.DOWN:
-                rot = 74f;
+            }
+            case Fighter.DOWN: {
+                // 쓰러짐 — 뒤로 넘어가며 점점 빨라지고, 바닥에 닿으면 한 번 튕깁니다.
+                if (!customDown) {
+                    float p = Draw.clamp(f.downTime / Fighter.FALL_TIME, 0f, 1f);
+                    float ang = 84f * p * p;
+                    if (f.downTime > Fighter.FALL_TIME) {
+                        float b = f.downTime - Fighter.FALL_TIME;
+                        ang -= 7f * (float) Math.sin(b * 22f) * (float) Math.exp(-b * 9f);
+                    }
+                    rot = -ang;
+                    lean = -6f * p;
+                }
                 alpha = 220;
+                // 쓰러진 병사는 잠시 뒤 서서히 사라집니다. (대장은 그대로 남깁니다)
+                if (!f.commander && f.role != Fighter.ROLE_HERO) {
+                    alpha = (int) Draw.clamp(220f - Math.max(0f, f.downTime - 1.2f) * 180f, 0f, 220f);
+                }
                 break;
-            case Fighter.VICTORY:
-                bob = (float) Math.sin(f.animTime * 2.6f) * 5f;
+            }
+            case Fighter.VICTORY: {
+                // 승리 — 처음 1초 남짓은 깡충 뛰며 환호하고, 그다음엔 숨을 고릅니다.
+                float hop = Math.max(0f, 1f - f.stateTime / 1.2f);
+                bob = (float) Math.sin(f.animTime * 2.6f) * 5f
+                        + Math.abs((float) Math.sin(f.stateTime * 7.5f)) * 12f * hop;
                 scaleY = 1.02f;
                 break;
+            }
             default:
                 break;
         }
@@ -239,9 +335,31 @@ public final class BattleRenderer {
         float hgt = drawH * scaleY;
         float left = f.x - anchor * scale * scaleX + lean;
         float top = Theme.GROUND - hgt - bob;
+        float bottom = Theme.GROUND - bob;
+
+        // 잔상 — 회피할 때는 푸른 잔상이 지나온 자리에, 필살기 돌진은 금빛 잔상이 뒤에 남습니다.
+        if (bmp != null) {
+            if (f.state == Fighter.DODGE) {
+                float dirLocal = f.dodgeDir * f.facing;     // 좌우 반전된 좌표계에서의 이동 방향
+                for (int g = 3; g >= 1; g--) {
+                    float off = -dirLocal * g * 20f;
+                    d.bitmapTint(c, bmp, left + off, top, left + off + w, bottom,
+                            Draw.withAlpha(0xFF9FD8F0, 90 / g));
+                }
+            } else if (f.state == Fighter.ATTACK && f.move != null
+                    && f.attackPhase() == Fighter.PHASE_ACTIVE
+                    && (f.usingUltimate || f.move.lunge >= 400f)) {
+                int col = f.usingUltimate ? 0xFFFFC94F : 0xFFFFE2A8;
+                for (int g = 3; g >= 1; g--) {
+                    float off = -g * 26f;
+                    d.bitmapTint(c, bmp, left + off, top, left + off + w, bottom,
+                            Draw.withAlpha(col, 100 / g));
+                }
+            }
+        }
 
         if (bmp != null) {
-            d.bitmap(c, bmp, left, top, left + w, Theme.GROUND - bob, alpha);
+            d.bitmap(c, bmp, left, top, left + w, bottom, alpha);
         } else {
             // 그림이 없을 때도 게임이 보이도록 간단한 실루엣을 그립니다.
             d.round(c, f.x - GameData.BODY_W * 0.4f, Theme.GROUND - f.spriteHeight,
@@ -249,12 +367,27 @@ public final class BattleRenderer {
                     10f, Draw.withAlpha(f.accent, alpha));
         }
 
-        // 맞은 직후 하얗게 번쩍 — 캔버스가 아니라 몸 위치에 맞춥니다.
+        // 막을 수 없는 공격(가드 브레이크)을 준비하는 적은 붉게 달아오릅니다.
+        // 방어 대신 회피해야 한다는 신호입니다.
+        if (bmp != null && f.team == 1 && f.state == Fighter.ATTACK && f.move != null
+                && f.move.guardBreak && f.attackPhase() == Fighter.PHASE_WINDUP
+                && (f.commander || f.role == Fighter.ROLE_HERO)) {
+            float t = f.stateTime / Math.max(0.001f, f.move.windup);
+            float pulse = 0.6f + 0.4f * (float) Math.sin(f.stateTime * 40f);
+            d.bitmapTint(c, bmp, left, top, left + w, bottom,
+                    Draw.withAlpha(0xFFFF5A3C, (int) (130 * t * pulse)));
+        }
+
+        // 맞은 직후 하얗게 번쩍 — 그림 모양 그대로 번쩍입니다.
         if (f.flashTime > 0f) {
-            int a = (int) (f.flashTime * 900f);
-            d.round(c, f.x - GameData.BODY_W * 0.5f, Theme.GROUND - f.spriteHeight - bob,
-                    f.x + GameData.BODY_W * 0.5f, Theme.GROUND - bob,
-                    8f, Draw.withAlpha(0xFFFFFFFF, Math.min(150, a)));
+            int a = Math.min(210, (int) (f.flashTime * 1400f));
+            if (bmp != null) {
+                d.bitmapTint(c, bmp, left, top, left + w, bottom, Draw.withAlpha(0xFFFFFFFF, a));
+            } else {
+                d.round(c, f.x - GameData.BODY_W * 0.5f, Theme.GROUND - f.spriteHeight - bob,
+                        f.x + GameData.BODY_W * 0.5f, Theme.GROUND - bob,
+                        8f, Draw.withAlpha(0xFFFFFFFF, Math.min(150, a)));
+            }
         }
 
         // 방어 중 방패 빛
@@ -265,6 +398,7 @@ public final class BattleRenderer {
         }
 
         c.restoreToCount(save);
+        c.restoreToCount(outer);
     }
 
     // ==================================================================
@@ -340,7 +474,7 @@ public final class BattleRenderer {
         d.gauge(c, 38f, hpT, 38f + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H,
                 w.player.hpRatio(), Theme.HP_BACK,
                 w.player.hpRatio() < 0.3f ? Theme.HP_PLAYER_LOW : Theme.HP_PLAYER, 5f);
-        d.roundStroke(c, 38f, hpT, 38f + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H, 5f, 1.5f, 0x55FFFFFF);
+        d.roundStroke(c, 38f, hpT, 38f + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H, 5f, 1.4f, 0xCCB8914F);
         d.text(c, w.player.hp + " / " + w.player.maxHp, 38f + Theme.HP_BAR_W - 6f, hpT + 15f,
                 11f, 0xDDFFFFFF, Draw.RIGHT, true);
 
@@ -354,9 +488,14 @@ public final class BattleRenderer {
             d.text(c, "필살기 준비!", 280f, rgT + 10f, 11f, Theme.RAGE_FULL, Draw.LEFT, true);
         }
 
+        // 군대 현황 (남은 병사)
+        if (w.armyMode) {
+            drawArmyStatus(c, d, w, 0, 38f, rgT + 34f, false);
+        }
+
         // 콤보
         if (w.combo >= 2) {
-            d.textOutlined(c, w.combo + " 연속타격", 38f, rgT + 34f, 16f,
+            d.textOutlined(c, w.combo + " 연속타격", 38f, rgT + (w.armyMode ? 62f : 34f), 16f,
                     Theme.TEXT_GOLD, Draw.LEFT, true);
         }
 
@@ -374,10 +513,13 @@ public final class BattleRenderer {
             d.round(c, eL + Theme.HP_BAR_W - ew, hpT, eL + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H,
                     5f, Theme.HP_ENEMY);
         }
-        d.roundStroke(c, eL, hpT, eL + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H, 5f, 1.5f, 0x55FFFFFF);
+        d.roundStroke(c, eL, hpT, eL + Theme.HP_BAR_W, hpT + Theme.HP_BAR_H, 5f, 1.4f, 0xCCB8914F);
         d.text(c, w.enemy.hp + " / " + w.enemy.maxHp, eL + 6f, hpT + 15f, 11f,
                 0xDDFFFFFF, Draw.LEFT, true);
-        if (w.stage != null && w.stage.boss) {
+        if (w.armyMode) {
+            d.text(c, "적 대장 · BOSS", Theme.VW - 38f, rgT + 10f, 12f, 0xFFFF9C6B, Draw.RIGHT, true);
+            drawArmyStatus(c, d, w, 1, Theme.VW - 38f, rgT + 34f, true);
+        } else if (w.stage != null && w.stage.boss) {
             d.text(c, "BOSS", Theme.VW - 38f, rgT + 10f, 12f, 0xFFFF9C6B, Draw.RIGHT, true);
         }
 
@@ -392,6 +534,39 @@ public final class BattleRenderer {
         }
     }
 
+    /**
+     * 남은 병사 표시. ■ = 돌격군(검과 방패) · ▲ = 궁수.
+     * 쓰러지면 흐리게 바뀝니다. right 가 true 면 오른쪽 끝(x)에 맞춰 그립니다.
+     */
+    private static void drawArmyStatus(Canvas c, Draw d, BattleWorld w, int team,
+                                       float x, float y, boolean right) {
+        int na = GameData.ARMY_ASSAULT_COUNT;
+        int nb = GameData.ARMY_ARCHER_COUNT;
+        int aliveA = w.aliveSoldiers(team, Fighter.ROLE_ASSAULT);
+        int aliveB = w.aliveSoldiers(team, Fighter.ROLE_ARCHER);
+        int on = (team == 0) ? Theme.GREEK : Theme.TROY;
+        int off = 0x55445566;
+
+        float cell = 18f;
+        float total = (na + nb) * cell + 52f;
+        float x0 = right ? x - total : x;
+
+        d.text(c, "돌격", x0, y, 11f, Theme.TEXT_DIM, Draw.LEFT, false);
+        float px = x0 + 30f;
+        for (int i = 0; i < na; i++) {
+            float cx = px + i * cell;
+            d.round(c, cx, y - 11f, cx + 12f, y + 1f, 2f, i < aliveA ? on : off);
+        }
+        px += na * cell + 8f;
+        d.text(c, "궁수", px - 4f, y, 11f, Theme.TEXT_DIM, Draw.LEFT, false);
+        px += 28f;
+        for (int i = 0; i < nb; i++) {
+            float cx = px + i * cell;
+            d.triangle(c, cx + 6f, y - 12f, cx - 1f, y + 1f, cx + 13f, y + 1f,
+                    i < aliveB ? on : off);
+        }
+    }
+
     // ==================================================================
     //  전투 시작 / 종료 연출
     // ==================================================================
@@ -400,17 +575,24 @@ public final class BattleRenderer {
         if (t < 1.25f) {
             float a = Draw.smooth(Draw.clamp(t / 0.35f, 0f, 1f));
             int fade = (int) (170 * a);
-            d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Draw.withAlpha(0xFF070B12, fade));
+            d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Draw.withAlpha(0xFF050302, fade));
 
             float slide = (1f - a) * 60f;
             d.textOutlined(c, w.stage.chapter, 480f - slide, 206f, 16f,
                     Theme.TEXT_GOLD, Draw.CENTER, true);
             d.textOutlined(c, w.stage.place, 480f - slide, 248f, 30f,
                     Theme.TEXT, Draw.CENTER, true);
-            d.textOutlined(c, w.player.name + "   VS   " + w.enemy.name, 480f + slide, 300f, 20f,
-                    Theme.BRONZE_LIGHT, Draw.CENTER, true);
+            if (w.armyMode) {
+                d.textOutlined(c, GameData.GREEK_ARMY_NAME + "   VS   " + GameData.TROY_ARMY_NAME,
+                        480f + slide, 300f, 22f, Theme.BRONZE_LIGHT, Draw.CENTER, true);
+                d.text(c, "돌격군 3 · 궁수 2  —  적 대장을 먼저 쓰러뜨리면 승리!", 480f, 330f, 14f,
+                        Theme.TEXT_GOLD, Draw.CENTER, true);
+            } else {
+                d.textOutlined(c, w.player.name + "   VS   " + w.enemy.name, 480f + slide, 300f, 20f,
+                        Theme.BRONZE_LIGHT, Draw.CENTER, true);
+            }
             if (w.tip != null && w.tip.length() > 0) {
-                d.text(c, w.tip, 480f, 338f, 13f, Theme.TEXT_DIM, Draw.CENTER, false);
+                d.text(c, w.tip, 480f, w.armyMode ? 358f : 338f, 13f, Theme.TEXT_DIM, Draw.CENTER, false);
             }
         } else {
             float a = Draw.clamp((1.9f - t) / 0.5f, 0f, 1f);
@@ -422,7 +604,7 @@ public final class BattleRenderer {
 
     private static void drawOutro(Canvas c, Draw d, BattleWorld w) {
         float a = Draw.smooth(Draw.clamp(w.phaseTime / 0.5f, 0f, 1f));
-        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Draw.withAlpha(0xFF070B12, (int) (120 * a)));
+        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Draw.withAlpha(0xFF050302, (int) (120 * a)));
         boolean win = (w.result == BattleWorld.RESULT_WIN);
         d.textOutlined(c, win ? "승리" : "패배", 480f, 268f, 62f,
                 Draw.withAlpha(win ? Theme.TEXT_GOLD : 0xFFE08878, (int) (255 * a)),
@@ -430,20 +612,18 @@ public final class BattleRenderer {
     }
 
     private static void drawPause(Canvas c, Draw d) {
-        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xCC070B12);
-        d.text(c, "일시정지", 480f, 168f, 30f, Theme.TEXT, Draw.CENTER, true);
+        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0xCC050302);
+        d.text(c, "일시정지", 480f, 160f, 30f, Theme.TEXT, Draw.CENTER, true);
         menuButton(c, d, PAUSE_RESUME, "계속하기", true);
         menuButton(c, d, PAUSE_RETRY, "이 전투 다시 시작", false);
+        menuButton(c, d, PAUSE_SAVE, "저장하기", false);
         menuButton(c, d, PAUSE_TITLE, "타이틀로 돌아가기", false);
     }
 
     /** 공용 메뉴 버튼 — Screens 에서도 같은 모양을 씁니다. */
     public static void menuButton(Canvas c, Draw d, float[] r, String label, boolean primary) {
-        d.round(c, r[0], r[1], r[2], r[3], 10f,
-                primary ? Theme.BRONZE : 0xCC28333F);
-        d.roundStroke(c, r[0], r[1], r[2], r[3], 10f, 1.6f,
-                primary ? 0xFFF2D49A : Theme.PANEL_LINE);
+        d.card(c, r[0], r[1], r[2], r[3], primary);
         d.text(c, label, (r[0] + r[2]) * 0.5f, (r[1] + r[3]) * 0.5f + 7f, 19f,
-                primary ? 0xFF231A10 : Theme.TEXT, Draw.CENTER, true);
+                primary ? Theme.TEXT_GOLD : Theme.TEXT, Draw.CENTER, true);
     }
 }

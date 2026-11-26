@@ -1,17 +1,24 @@
 package com.example.trojanprototype.ui;
 
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 
+import com.example.trojanprototype.util.Assets;
 import com.example.trojanprototype.util.Draw;
 
 /**
- * 스테이지 배경 그리기 (Canvas 로 직접 그리는 방식).
+ * 스테이지 배경 그리기.
  *
  * 담당: 심신 (배경 / 연출)
  *
- * 배경 이미지 파일 없이 도형으로 그리기 때문에 용량이 0이고,
- * 색만 바꾸면 분위기를 바로 바꿀 수 있습니다.
- * 나중에 배경 그림(png)을 준비하면 draw() 안에서 d.bitmap(...) 한 줄로 교체하면 됩니다.
+ * ── 배경 그림 + 움직이는 연출 ────────────────────────────
+ * res/drawable-nodpi/ 의 배경 그림(bg_*.png)을 깔고, 그 위에
+ * 파도 반짝임 · 깃발 · 횃불 · 별 · 불씨 같은 "움직이는 부분"만 코드로 그립니다.
+ * 배경 그림은 tools/make_backdrops.py 가 픽셀 아트로 생성한 것이며,
+ * 같은 이름의 png 를 덮어쓰면 코드 수정 없이 그림이 바뀝니다.
+ *   (크기 520 x 270 권장 — 게임에서 2배로 늘려 그립니다. 좌우 20px 은 시차용 여백)
+ *
+ * 그림 파일이 없으면 예전처럼 도형으로 그린 배경(drawBeach 등)을 대신 씁니다.
  *
  * 배경 종류
  *   0 트로이 해안   1 트로이 성벽   2 성문 앞 야간
@@ -27,6 +34,23 @@ public final class Backdrop {
     public static final int OLYMPUS = 3;
     public static final int SEA = 4;
 
+    /** 배경 종류 번호 → 배경 그림 이름 */
+    private static final String[] IMAGE = {"bg_beach", "bg_wall", "bg_gate", "bg_olympus", "bg_sea"};
+    /** 배경 그림의 좌우 여백 (가상 좌표). 카메라가 따라갈 때 이만큼 밀립니다. */
+    private static final float MARGIN = 40f;
+
+    private static Assets assets;
+
+    /** 그림을 불러올 Assets 를 알려 줍니다. (GameEngine 이 시작할 때 한 번 부릅니다) */
+    public static void setAssets(Assets a) {
+        assets = a;
+    }
+
+    private static Bitmap image(int type) {
+        if (assets == null || type < 0 || type >= IMAGE.length) return null;
+        return assets.sprite(IMAGE[type]);
+    }
+
     /**
      * @param time     경과 시간(초) — 불꽃이나 파도의 흔들림에 사용
      * @param parallax -1 ~ +1 — 카메라가 좌우로 살짝 따라가는 느낌
@@ -36,23 +60,163 @@ public final class Backdrop {
         // 이게 없으면 하늘과 바닥 사이에 아무것도 안 그려진 검은 띠가 생깁니다.
         d.rect(c, 0f, 0f, Theme.VW, Theme.VH, Theme.BG_DEEP);
 
-        switch (type) {
-            case WALL:
-                drawWall(c, d, time, parallax);
-                break;
-            case NIGHT_GATE:
-                drawNightGate(c, d, time, parallax);
-                break;
-            case OLYMPUS:
-                drawOlympus(c, d, time, parallax);
-                break;
-            case SEA:
-                drawSea(c, d, time, parallax);
-                break;
-            default:
-                drawBeach(c, d, time, parallax);
-                break;
+        Bitmap bg = image(type);
+        if (bg != null) {
+            // 배경 그림 + 움직이는 연출. 둘을 같은 만큼 밀어야 위치가 어긋나지 않습니다.
+            float shift = -Draw.clamp(parallax, -1f, 1f) * MARGIN;
+            d.bitmapRect(c, bg, -MARGIN + shift, 0f, Theme.VW + MARGIN + shift, Theme.VH);
+            int save = c.save();
+            c.translate(shift, 0f);
+            switch (type) {
+                case WALL:
+                    wallOverlay(c, d, time);
+                    break;
+                case NIGHT_GATE:
+                    gateOverlay(c, d, time);
+                    break;
+                case OLYMPUS:
+                    olympusOverlay(c, d, time);
+                    break;
+                case SEA:
+                    seaOverlay(c, d, time);
+                    break;
+                default:
+                    beachOverlay(c, d, time);
+                    break;
+            }
+            c.restoreToCount(save);
+        } else {
+            switch (type) {
+                case WALL:
+                    drawWall(c, d, time, parallax);
+                    break;
+                case NIGHT_GATE:
+                    drawNightGate(c, d, time, parallax);
+                    break;
+                case OLYMPUS:
+                    drawOlympus(c, d, time, parallax);
+                    break;
+                case SEA:
+                    drawSea(c, d, time, parallax);
+                    break;
+                default:
+                    drawBeach(c, d, time, parallax);
+                    break;
+            }
         }
+
+        // 사진처럼 전체를 따뜻하게 그을린 톤으로 눌러 주고 가장자리를 어둡게 합니다.
+        d.rect(c, 0f, 0f, Theme.VW, Theme.VH, 0x30301808);
+        d.vignette(c, Theme.VW, Theme.VH);
+    }
+
+    // ==================================================================
+    //  배경 그림 위에 그리는 움직이는 연출 (좌표는 배경 그림과 맞춰 둔 가상 좌표)
+    // ==================================================================
+    /** 해안 — 바다 위를 흘러가는 물결 반짝임, 해 아래 일렁이는 빛 */
+    private static void beachOverlay(Canvas c, Draw d, float time) {
+        for (int i = 0; i < 12; i++) {
+            float w = 30f + (i % 3) * 22f;
+            float x = ((i * 97f) + time * (9f + (i % 4) * 3f)) % (Theme.VW + 160f) - 80f;
+            float y = 272f + (i % 5) * 12f;
+            float a = 0.5f + 0.5f * (float) Math.sin(time * 1.7f + i);
+            d.rect(c, x, y, x + w, y + 2f, Draw.withAlpha(0xFFA8C4D4, (int) (40 + 60 * a)));
+        }
+        for (int i = 0; i < 6; i++) {
+            float y = 270f + i * 10f;
+            float half = 12f + i * 6f;
+            float off = (float) Math.sin(time * 2.3f + i * 1.3f) * 6f;
+            d.rect(c, 796f - half + off, y, 796f + half + off, y + 2f,
+                    Draw.withAlpha(0xFFFFD08A, 70 - i * 8));
+        }
+    }
+
+    /** 성벽 — 바람에 펄럭이는 트로이 깃발 */
+    private static void wallOverlay(Canvas c, Draw d, float time) {
+        for (int i = 0; i < 3; i++) {
+            float x = 250f + i * 240f;
+            for (int s = 0; s < 8; s++) {
+                float t = s / 7f;
+                float sx = x + 2f + s * 5.5f;
+                float wave = (float) Math.sin(time * 4.2f - s * 0.8f + i) * 3.5f * t;
+                int col = (s % 4 == 3) ? 0xFF6E6B64 : Theme.TROY;
+                d.rect(c, sx, 66f + wave, sx + 6f, 94f + wave, col);
+                d.rect(c, sx, 66f + wave, sx + 6f, 68f + wave, 0x55FFFFFF);
+            }
+        }
+    }
+
+    /** 성문 — 깜빡이는 별, 불타는 도시의 일렁임, 횃불, 날아오르는 불씨 */
+    private static void gateOverlay(Canvas c, Draw d, float time) {
+        for (int i = 0; i < 22; i++) {
+            float sx = (i * 173f) % Theme.VW;
+            float sy = 14f + (i * 37f) % 86f;
+            float tw = flicker(time, 1.4f + (i % 5) * 0.4f, i);
+            d.circle(c, sx, sy, 1.4f, Draw.withAlpha(0xFFE8E4D8, (int) (60 + 150 * tw)));
+        }
+        for (int i = 0; i < 4; i++) {
+            float fx = 140f + i * 230f;
+            float f = flicker(time, 2.6f + i, i * 2f);
+            softGlow(c, d, fx, 170f, 90f + f * 16f, 0xFFD9602C, (int) (6 + 10 * f));
+        }
+        torchFlame(c, d, 290f, time);
+        torchFlame(c, d, 670f, time);
+        for (int i = 0; i < 16; i++) {
+            float life = ((time * (0.22f + (i % 4) * 0.05f)) + i * 0.137f) % 1f;
+            float ex = (i * 61f) % Theme.VW + (float) Math.sin(time * 1.3f + i) * 14f;
+            float ey = 330f - life * 260f;
+            d.rect(c, ex, ey, ex + 3f, ey + 3f,
+                    Draw.withAlpha(life < 0.5f ? 0xFFFFB060 : 0xFFE0602E, (int) (220 * (1f - life))));
+        }
+    }
+
+    /** 가장자리가 흐린 빛무리 — 원을 여러 겹 겹쳐 안쪽일수록 밝게 */
+    private static void softGlow(Canvas c, Draw d, float x, float y, float r, int color, int alphaPerRing) {
+        for (int k = 0; k < 5; k++) {
+            d.circle(c, x, y, r * (1f - k * 0.18f), Draw.withAlpha(color, alphaPerRing));
+        }
+    }
+
+    private static void torchFlame(Canvas c, Draw d, float x, float time) {
+        float f = flicker(time, 7f, x);
+        float g = flicker(time, 11f, x * 0.3f);
+        softGlow(c, d, x, 290f, 46f + f * 8f, 0xFFFFA64D, 10);
+        d.circle(c, x + (g - 0.5f) * 2f, 286f, 10f + f * 3f, 0xFFE07A33);
+        d.circle(c, x + (g - 0.5f) * 3f, 280f - f * 3f, 6f + g * 2f, 0xFFFF9C40);
+        d.circle(c, x, 288f, 5f + f * 2f, 0xFFFFD27A);
+    }
+
+    /** 올림포스 — 떠오르며 빛나는 황금 사과와 반짝임 */
+    private static void olympusOverlay(Canvas c, Draw d, float time) {
+        float ax = 480f;
+        float ay = 250f + (float) Math.sin(time * 1.6f) * 9f;
+        float glow = flicker(time, 2.4f, 0f);
+        softGlow(c, d, ax, ay, 62f + glow * 12f, 0xFFFFD36B, 16);
+        d.circle(c, ax, ay, 24f, 0xFFFFC94F);
+        d.circle(c, ax + 6f, ay + 7f, 16f, 0xFFE8A93A);
+        d.circle(c, ax - 7f, ay - 8f, 7f, 0xFFFFF0B8);
+        d.line(c, ax, ay - 22f, ax + 7f, ay - 36f, 3f, 0xFF6E5A2C);
+        d.oval(c, ax + 6f, ay - 38f, ax + 22f, ay - 30f, 0xFF7E9A4A);   // 잎
+        for (int i = 0; i < 6; i++) {
+            float a = (float) (time * 0.9f + i * Math.PI / 3.0);
+            float r = 44f + (float) Math.sin(time * 2f + i) * 6f;
+            float tw = flicker(time, 3f + i, i);
+            d.circle(c, ax + (float) Math.cos(a) * r, ay + (float) Math.sin(a) * r * 0.6f,
+                    1.5f + tw * 1.5f, Draw.withAlpha(0xFFFFF0B8, (int) (80 + 150 * tw)));
+        }
+    }
+
+    /** 귀향의 바다 — 해 아래 일렁이는 빛과 이타카로 향하는 배 */
+    private static void seaOverlay(Canvas c, Draw d, float time) {
+        for (int i = 0; i < 14; i++) {
+            float y = 256f + i * 19f;
+            float off = (float) Math.sin(time * 1.1f + i * 0.7f) * 22f;
+            float w = 40f + i * 12f;
+            d.rect(c, 480f + off - w * 0.5f, y, 480f + off + w * 0.5f, y + 3f,
+                    Draw.withAlpha(0xFFE8B183, 64 - i * 3));
+        }
+        float bobY = (float) Math.sin(time * 1.2f) * 2.5f;
+        ship(c, d, 520f, 336f + bobY, 1.5f, 0xFF0E1620);
     }
 
     // ==================================================================

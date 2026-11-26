@@ -2,6 +2,7 @@ package com.example.trojanprototype.battle;
 
 import android.graphics.RectF;
 
+import com.example.trojanprototype.ai.EnemyBrain;
 import com.example.trojanprototype.data.GameData;
 import com.example.trojanprototype.ui.Theme;
 import com.example.trojanprototype.util.SpriteSet;
@@ -51,6 +52,25 @@ public class Fighter {
     public static final int RESULT_GUARDED = 1;
     public static final int RESULT_HIT = 2;
     public static final int RESULT_GUARD_BREAK = 3;
+
+    // 군대 전투에서의 역할
+    public static final int ROLE_HERO = 0;      // 플레이어(그리스군 대장)
+    public static final int ROLE_COMMANDER = 1; // 트로이군 대장(보스 개체)
+    public static final int ROLE_ASSAULT = 2;   // 돌격군 (검과 방패)
+    public static final int ROLE_ARCHER = 3;    // 궁수 (활)
+
+    // ------------------------------------------------ 군대 정보
+    /** 0 = 그리스군, 1 = 트로이군 */
+    public int team = 0;
+    public int role = ROLE_HERO;
+    /** 대장이면 true — 대장이 쓰러지면 그 군대가 패배합니다. */
+    public boolean commander = false;
+    /** 앞뒤 줄(세로 오프셋, px). 여러 명이 한 줄로 겹치지 않게 합니다. */
+    public float lane = 0f;
+    /** 이 병사를 조종하는 AI (플레이어는 null) */
+    public EnemyBrain ai = null;
+    /** 쓰러진 뒤 흐른 시간 (사라지는 연출용) */
+    public float downTime = 0f;
 
     // ------------------------------------------------ 캐릭터 정보
     public String name = "";
@@ -109,6 +129,17 @@ public class Fighter {
 
     // 연출용
     public float animTime = 0f;
+    /** 방금 맞은 공격의 세기 (0~1). 피격 모션이 얼마나 크게 젖혀질지 정합니다. */
+    public float hurtPower = 0f;
+    /** 가드 브레이크로 비틀거리는 중인지 (피격 모션이 달라집니다) */
+    public boolean staggered = false;
+    /** 쓰러지는 동작이 끝나 바닥에 닿았는지 */
+    public boolean landed = false;
+    /** 바닥에 닿은 바로 그 순간 한 번만 true — BattleWorld 가 흙먼지를 만들고 끕니다. */
+    public boolean landedEvent = false;
+
+    /** 체력이 0 이 되어 바닥에 닿기까지 걸리는 시간(초) */
+    public static final float FALL_TIME = 0.36f;
 
     private final RectF tmpBody = new RectF();
     private final RectF tmpAttack = new RectF();
@@ -136,6 +167,11 @@ public class Fighter {
         comboTaken = 0;
         sinceLastHurt = 99f;
         brokeOut = false;
+        downTime = 0f;
+        hurtPower = 0f;
+        staggered = false;
+        landed = false;
+        landedEvent = false;
     }
 
     // ==================================================================
@@ -326,6 +362,8 @@ public class Fighter {
         stateTime = 0f;
         hurtDuration = (blocking && m.guardBreak)
                 ? GameData.GUARD_BREAK_STUN : GameData.HURT_TIME;
+        hurtPower = Math.min(1f, m.knockback / 360f);
+        staggered = blocking && m.guardBreak;
         flashTime = 0.14f;
         chainStep = 0;
         chainTimer = 0f;
@@ -374,6 +412,13 @@ public class Fighter {
     public void update(float dt) {
         animTime += dt;
         stateTime += dt;
+        if (state == DOWN) {
+            downTime += dt;
+            if (!landed && downTime >= FALL_TIME) {
+                landed = true;
+                landedEvent = true;
+            }
+        }
 
         sinceLastHurt += dt;
         if (sinceLastHurt > GameData.COMBO_RESET_TIME) comboTaken = 0;
@@ -470,7 +515,7 @@ public class Fighter {
     // ==================================================================
     public RectF bodyBox() {
         float half = GameData.BODY_W * 0.5f;
-        tmpBody.set(x - half, Theme.GROUND - GameData.BODY_H, x + half, Theme.GROUND);
+        tmpBody.set(x - half, Theme.GROUND + lane - GameData.BODY_H, x + half, Theme.GROUND + lane);
         return tmpBody;
     }
 
@@ -481,7 +526,7 @@ public class Fighter {
         float front = x + facing * (GameData.BODY_W * 0.5f);
         float l = (facing > 0) ? front : front - move.reach;
         float r = (facing > 0) ? front + move.reach : front;
-        float top = Theme.GROUND - move.boxTop;
+        float top = Theme.GROUND + lane - move.boxTop;
         tmpAttack.set(l, top, r, top + move.boxHeight);
         return tmpAttack;
     }

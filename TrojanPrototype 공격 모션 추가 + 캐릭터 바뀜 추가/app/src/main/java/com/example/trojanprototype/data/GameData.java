@@ -245,7 +245,7 @@ public final class GameData {
     public static final Difficulty[] DIFFICULTIES = {
             new Difficulty("쉬움", "적이 느리게 판단합니다", 0.58f, 0.40f, 0.30f, 0.75f),
             new Difficulty("보통", "기본 난이도", 0.34f, 0.64f, 0.58f, 1.00f),
-            new Difficulty("어려움", "적이 빈틈을 노립니다", 0.22f, 0.80f, 0.85f, 1.30f)
+            new Difficulty("어려움", "적이 빈틈을 노립니다", 0.22f, 0.80f, 0.78f, 1.12f)
     };
 
     // ============================================================
@@ -265,6 +265,12 @@ public final class GameData {
         public final float enemyMoveSpeed;
         public final float enemySpriteHeight;
         public final boolean boss;
+        /**
+         * true 면 1대1 결투가 아니라 군대 대 군대 전투입니다.
+         * 이때 enemy* 항목은 "트로이 대장" 의 능력치가 되고,
+         * 나머지 병사 구성은 아래 ARMY_ 로 시작하는 상수와 GREEK_·TROY_ 로 시작하는 병사 정의를 따릅니다.
+         */
+        public final boolean army;
         public final int timeLimit;       // 제한 시간(초)
         public final Move enemyLight;
         public final Move enemyHeavy;
@@ -273,12 +279,26 @@ public final class GameData {
         /** 패배 후 결과 화면에 뜨는 해설 */
         public final String defeatNote;
 
+        /** 1대1 결투 스테이지 */
         public StageDef(String chapter, String place, CharacterDef hero,
                         String enemyName, String enemyTitle,
                         String spriteName, int backdrop, int enemyHp, float enemyAttack,
                         float enemyMoveSpeed, float enemySpriteHeight, boolean boss, int timeLimit,
                         Move enemyLight, Move enemyHeavy,
                         String victoryNote, String defeatNote) {
+            this(chapter, place, hero, enemyName, enemyTitle, spriteName, backdrop, enemyHp,
+                    enemyAttack, enemyMoveSpeed, enemySpriteHeight, boss, false, timeLimit,
+                    enemyLight, enemyHeavy, victoryNote, defeatNote);
+        }
+
+        public StageDef(String chapter, String place, CharacterDef hero,
+                        String enemyName, String enemyTitle,
+                        String spriteName, int backdrop, int enemyHp, float enemyAttack,
+                        float enemyMoveSpeed, float enemySpriteHeight, boolean boss, boolean army,
+                        int timeLimit,
+                        Move enemyLight, Move enemyHeavy,
+                        String victoryNote, String defeatNote) {
+            this.army = army;
             this.chapter = chapter;
             this.place = place;
             this.hero = hero;
@@ -299,6 +319,95 @@ public final class GameData {
         }
     }
 
+    // ============================================================
+    //  군대 전투 — 병사 정의
+    //
+    //  한 군대 = 대장 1 + 돌격군 3(검과 방패) + 궁수 2(활)
+    //   · 그리스군 대장 = 플레이어(아킬레우스)
+    //   · 트로이군 대장 = 일반 병사의 "보스 개체" (StageDef 의 enemy* 항목)
+    //  먼저 상대 대장을 쓰러뜨리는 쪽이 이깁니다.
+    //  병사 그림은 오디세우스 한 벌(검·방패·활)을 진영 색으로 물들여 씁니다.
+    // ============================================================
+    public static final int ARMY_ASSAULT_COUNT = 3;
+    public static final int ARMY_ARCHER_COUNT = 2;
+
+    public static final String GREEK_ARMY_NAME = "그리스군";
+    public static final String TROY_ARMY_NAME = "트로이군";
+
+    /** 군대 전투에서 플레이어(대장) 체력 배수 — 여러 명에게 둘러싸이기 때문 */
+    public static final float ARMY_PLAYER_HP_SCALE = 2.4f;
+    /** 군대 전투에서 일반 병사끼리 주고받는 피해 배수 */
+    public static final float ARMY_SOLDIER_DAMAGE = 0.8f;
+
+    public static final class UnitDef {
+        public final String name;
+        public final String spriteName;
+        public final int maxHp;
+        public final float attack;
+        public final float moveSpeed;
+        public final float spriteHeight;
+        public final Move light;
+        public final Move heavy;
+        public final boolean archer;
+
+        public UnitDef(String name, String spriteName, int maxHp, float attack, float moveSpeed,
+                       float spriteHeight, Move light, Move heavy, boolean archer) {
+            this.name = name;
+            this.spriteName = spriteName;
+            this.maxHp = maxHp;
+            this.attack = attack;
+            this.moveSpeed = moveSpeed;
+            this.spriteHeight = spriteHeight;
+            this.light = light;
+            this.heavy = heavy;
+            this.archer = archer;
+        }
+    }
+
+    // 돌격군의 검 동작: f6 치켜듦 → f7 베기 → f8 → f9 / 올려베기 f10 → f11 → f8 → f9
+    private static final Move ASSAULT_LIGHT =
+            new Move("검격", 0.26f, 0.12f, 0.36f, 86f, 70f, 116f, 9f, 150f, 150f, 1, 0f,
+                    false, false, 0f, new int[]{6, 7, 8, 9});
+    private static final Move ASSAULT_HEAVY =
+            new Move("방패 올려베기", 0.40f, 0.14f, 0.46f, 96f, 86f, 126f, 14f, 260f, 200f, 1, 0f,
+                    true, false, 0f, new int[]{10, 11, 8, 9});
+
+    // 궁수의 활: 시위를 당기는 그림(f4)이 곧 공격 동작입니다.
+    private static final Move ARCHER_LIGHT =
+            new Move("화살", 0.42f, 0.06f, 0.70f, 60f, 40f, 104f, 7f, 100f, 0f, 1, 0f, false,
+                    true, 700f);
+    private static final Move ARCHER_HEAVY =
+            new Move("강궁", 0.65f, 0.06f, 0.80f, 60f, 44f, 106f, 12f, 240f, 0f, 1, 0f, true,
+                    true, 860f);
+
+    public static final UnitDef GREEK_ASSAULT = new UnitDef(
+            "그리스 돌격병", "greek_soldier_sprite", 52, 1.0f, 150f, 128f,
+            ASSAULT_LIGHT, ASSAULT_HEAVY, false);
+    public static final UnitDef GREEK_ARCHER = new UnitDef(
+            "그리스 궁수", "greek_soldier_sprite", 36, 1.0f, 140f, 124f,
+            ARCHER_LIGHT, ARCHER_HEAVY, true);
+    public static final UnitDef TROY_ASSAULT = new UnitDef(
+            "트로이 돌격병", "troy_soldier_sprite", 52, 1.0f, 150f, 128f,
+            ASSAULT_LIGHT, ASSAULT_HEAVY, false);
+    public static final UnitDef TROY_ARCHER = new UnitDef(
+            "트로이 궁수", "troy_soldier_sprite", 36, 1.0f, 140f, 124f,
+            ARCHER_LIGHT, ARCHER_HEAVY, true);
+
+    /**
+     * 시작 배치. 인덱스 0~2 = 돌격군, 3~4 = 궁수.  (플레이어/대장은 따로 정합니다)
+     * x 는 가상 화면 좌표, lane 은 앞뒤 줄(세로 오프셋, px) 입니다.
+     * 그리스군 줄과 트로이군 줄을 서로 어긋나게 둬서 한 줄로 엉키지 않게 합니다.
+     */
+    public static final float[] GREEK_UNIT_X = {250f, 270f, 230f, 150f, 125f};
+    public static final float[] GREEK_UNIT_LANE = {-24f, 18f, -2f, -12f, 26f};
+    public static final float GREEK_HERO_X = 330f;
+    public static final float GREEK_HERO_LANE = 4f;
+
+    public static final float[] TROY_UNIT_X = {690f, 710f, 670f, 800f, 825f};
+    public static final float[] TROY_UNIT_LANE = {-20f, 22f, 2f, -10f, 28f};
+    public static final float TROY_CMDR_X = 750f;
+    public static final float TROY_CMDR_LANE = -4f;
+
     // 적 기술 — 사거리는 각 캐릭터 공격 프레임(_f4)의 무기 끝에 맞췄습니다.
     private static final Move SOLDIER_LIGHT =
             new Move("찌르기", 0.22f, 0.10f, 0.32f, 124f, 64f, 114f, 9f, 170f, 60f, 1, 0f, false);
@@ -315,27 +424,34 @@ public final class GameData {
     private static final Move GUARD_HEAVY =
             new Move("방패 밀치기", 0.34f, 0.12f, 0.42f, 108f, 92f, 130f, 16f, 300f, 140f, 1, 0f, true);
 
+    // 트로이 대장 — 일반 병사의 창을 키운 "보스 개체"
+    private static final Move CMDR_LIGHT =
+            new Move("대장의 창", 0.20f, 0.10f, 0.30f, 130f, 66f, 116f, 10f, 170f, 70f, 1, 0f, false);
+    private static final Move CMDR_HEAVY =
+            new Move("지휘관의 일격", 0.34f, 0.13f, 0.42f, 146f, 92f, 132f, 17f, 300f, 160f, 1, 0f, true);
+
     public static final StageDef[] STAGES = {
+            // CHAPTER 1·2 는 군대 전투입니다. (enemy* = 트로이 대장)
             new StageDef(
                     "CHAPTER 1", "트로이 해안", ACHILLES,
-                    "트로이 병사", "해안을 지키는 수비대",
-                    "troy_sprite", 0, 95, 1.00f, 140f, 140f, false, 90,
-                    SOLDIER_LIGHT, SOLDIER_HEAVY,
+                    "트로이 대장", "해안 수비대를 이끄는 지휘관",
+                    "troy_sprite", 0, 240, 0.95f, 150f, 172f, true, true, 150,
+                    CMDR_LIGHT, CMDR_HEAVY,
                     "그리스군이 해안에 상륙했다. 그러나 트로이의 성벽은 아직 멀리 있었다.",
                     "상륙은 막혔다. 숨을 고르고 다시 해안으로 나아가자."
             ),
             new StageDef(
                     "CHAPTER 2", "트로이 성벽 아래", ACHILLES,
-                    "트로이 정예병", "성벽을 지키는 최정예",
-                    "troy_sprite", 1, 130, 1.15f, 170f, 142f, false, 90,
-                    SOLDIER_LIGHT, SOLDIER_HEAVY,
+                    "트로이 정예 대장", "성벽을 지키는 최정예의 우두머리",
+                    "troy_sprite", 1, 290, 1.05f, 165f, 176f, true, true, 150,
+                    CMDR_LIGHT, CMDR_HEAVY,
                     "성벽 앞의 전선을 밀어냈다. 그래도 전쟁은 끝나지 않는다.",
                     "성벽은 높았다. 방어와 회피를 섞어 다시 도전해 보자."
             ),
             new StageDef(
                     "CHAPTER 3", "트로이 성문 앞 · 결투", ACHILLES,
                     "헥토르", "트로이의 왕자",
-                    "hector_sprite", 2, 165, 1.12f, 168f, 156f, true, 120,
+                    "hector_sprite", 2, 180, 1.12f, 168f, 156f, true, 120,
                     HECTOR_LIGHT, HECTOR_HEAVY,
                     "트로이 최강의 전사가 쓰러졌다. 전쟁의 저울이 기울기 시작한다.",
                     "헥토르는 조국을 등지지 않았다. 빈틈을 노려 다시 겨뤄 보자."
@@ -344,7 +460,7 @@ public final class GameData {
             new StageDef(
                     "FINAL", "불타는 트로이 왕궁", ODYSSEUS,
                     "왕궁 수비대장", "마지막까지 성문을 지킨 자",
-                    "troy_sprite", 2, 138, 1.10f, 172f, 144f, true, 120,
+                    "troy_sprite", 2, 170, 1.18f, 172f, 144f, true, 120,
                     GUARD_LIGHT, GUARD_HEAVY,
                     "트로이의 마지막 저항이 끝났다. 10년의 전쟁이 막을 내린다.",
                     "성은 아직 함락되지 않았다. 거리를 벌리며 화살을 노려 보자."
