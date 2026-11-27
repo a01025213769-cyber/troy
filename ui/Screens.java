@@ -137,13 +137,14 @@ public final class Screens {
     //  타이틀 (홈 화면) — 사진 시안을 그대로 옮겼습니다
     // ==================================================================
     //  그림 파일 (res/drawable-nodpi, 스프라이트와 같은 폴더 / 같은 방식으로 이름으로 불러옴)
-    //    title_bg             전체 배경 — 성벽 · 트로이 목마 · 병사들 · 왼쪽 스파르타 전사
-    //    title_card_campaign  캠페인 시작 카드 사진     title_card_multi   멀티플레이 카드 사진
-    //    title_card_heroes    영웅 카드 사진            title_card_army    군대 관리 카드 사진
-    //    title_news           소식 카드(불타는 도시)     title_banner_*     진영 깃발
-    //    title_icon_*         재화 · 설정 아이콘         title_ornament     하단 월계수 장식
-    //    title_logo_helmet    로고 옆 투구 문장
-    //  카드 사진에는 글자가 없고, 문구는 아래 코드가 직접 씁니다 (문구를 바꾸려면 여기만 고치면 됨).
+    //    title_bg             전체 배경 — 성벽 · 불타는 트로이 · 트로이 목마 · 병사들 · 아킬레우스
+    //    title_card_campaign  캠페인 시작 — 돌격하는 그리스군    title_card_multi   멀티플레이 — 함대
+    //    title_card_heroes    영웅 — 헥토르                     title_card_army    군대 관리 — 중장보병 대열
+    //    title_news           소식 카드(불타는 도시)             title_logo_helmet  로고 옆 투구(헥토르)
+    //    title_banner_*       진영 깃발   title_icon_*  재화 · 설정 아이콘   title_ornament  하단 장식
+    //  배경 · 카드 그림은 tools/make_title_pixel.py 가 게임 스프라이트로 만든 픽셀 아트입니다.
+    //  가상 화면의 절반 해상도라서 2배로, 필터 없이(픽셀 그대로) 그립니다 — 전투 화면과 같은 느낌.
+    //  그림에는 글자가 없고, 문구는 아래 코드가 직접 씁니다 (문구를 바꾸려면 여기만 고치면 됨).
     //  배경 그림이 없으면 예전 Canvas 배경(Backdrop)으로 대신 그립니다.
 
     private static final int T_CREAM = 0xFFEFDCB8;    // 카드 제목
@@ -156,16 +157,25 @@ public final class Screens {
     public static void drawTitle(Canvas c, Draw d, Assets assets, float time, int diffIndex,
                                  int cleared, boolean hasSave) {
         Bitmap bg = assets == null ? null : assets.sprite("title_bg");
-        hasTitleArt = (bg != null);
         if (bg != null) {
-            d.photo(c, bg, 0f, 0f, Theme.VW, Theme.VH, 255);
+            d.bitmap(c, bg, 0f, 0f, Theme.VW, Theme.VH, 255);
         } else {
             Backdrop.draw(c, d, Backdrop.NIGHT_GATE, time, 0f);
         }
 
-        // ---- 왼쪽 문구 (영문은 배경 그림에 들어 있고, 한글 두 줄만 씁니다)
-        d.textFaceShadow(c, "영웅은 싸우고,", 79.4f, 347.5f, 10.5f, 0xFFE8DCC6, Draw.CENTER, Draw.SANS);
-        d.textFaceShadow(c, "신들은 모든 것을 결정한다.", 79.4f, 363f, 10.5f, 0xFFE8DCC6, Draw.CENTER, Draw.SANS);
+        // ---- 오른쪽 위 인용문
+        d.textFaceShadow(c, "“도시는 무너질지언정,", 938f, 70f, 14.6f, 0xFFF1E2C4, Draw.RIGHT, Draw.SERIF_KR);
+        d.textFaceShadow(c, "이야기는 영원하다.”", 938f, 89.5f, 14.6f, 0xFFF1E2C4, Draw.RIGHT, Draw.SERIF_KR);
+        d.textFaceShadow(c, "SOME WARS END,", 934f, 108f, 7.6f, 0xFFE6D3AE, Draw.RIGHT, Draw.CINZEL);
+        d.textFaceShadow(c, "BUT LEGENDS NEVER DIE.", 934f, 120.5f, 7.6f, 0xFFE6D3AE, Draw.RIGHT, Draw.CINZEL);
+
+        // ---- 왼쪽 문구 — 아킬레우스 머리 위
+        String[] tag = {"HEROES", "WAGE WAR", "BUT THE GODS", "DECIDE ALL."};
+        for (int i = 0; i < tag.length; i++) {
+            d.textFaceShadow(c, tag[i], 80f, 78f + i * 19.4f, 14.6f, 0xFFE3CFA4, Draw.CENTER, Draw.CINZEL);
+        }
+        d.textFaceShadow(c, "영웅은 싸우고,", 80f, 162f, 10.5f, 0xFFE8DCC6, Draw.CENTER, Draw.SANS);
+        d.textFaceShadow(c, "신들은 모든 것을 결정한다.", 80f, 177f, 10.5f, 0xFFE8DCC6, Draw.CENTER, Draw.SANS);
 
         // ---- 메뉴 카드 4장
         float glow = 0.5f + 0.5f * (float) Math.sin(time * 2.6f);
@@ -200,7 +210,7 @@ public final class Screens {
                                  float subY, float chevronInset, float glow) {
         Bitmap bmp = assets == null ? null : assets.sprite(image);
         if (bmp != null) {
-            d.photo(c, bmp, r[0], r[1], r[2], r[3], 255);
+            d.bitmap(c, bmp, r[0], r[1], r[2], r[3], 255);
         } else {
             d.card(c, r[0], r[1], r[2], r[3], false);
         }
@@ -220,10 +230,7 @@ public final class Screens {
     /** 주요 목표 패널 — 실제 진행도(클리어한 챕터 수)로 표시합니다. */
     private static void drawObjectives(Canvas c, Draw d, int cleared) {
         float[] p = TITLE_OBJ;
-        // 패널 바탕은 배경 그림에 들어 있습니다 (글자만 지운 상태). 그림이 없을 때만 직접 그립니다.
-        if (!hasTitleArt) {
-            d.panel(c, p[0], p[1], p[2], p[3], 0xEE0E0B09);
-        }
+        d.round(c, p[0], p[1], p[2], p[3], 3f, 0xE80E0B09);
         d.roundStroke(c, p[0] + 0.5f, p[1] + 0.5f, p[2] - 0.5f, p[3] - 0.5f, 2f, 1f, 0x88B8914F);
 
         d.textFace(c, "주요 목표", p[0] + 13.8f, p[1] + 25.4f, 14.6f, 0xFFEDE1C9, Draw.LEFT, Draw.SERIF_KR);
@@ -267,9 +274,6 @@ public final class Screens {
         }
     }
 
-    /** 배경 그림을 불러왔는지 (drawTitle 이 매 프레임 갱신) */
-    private static boolean hasTitleArt = true;
-
     /** 아래 띠 — 아카이아 연합 / 트로이 */
     private static void drawFactionBand(Canvas c, Draw d, Assets assets) {
         float top = 465f, bottom = 520f;
@@ -297,10 +301,7 @@ public final class Screens {
         float[] r = TITLE_NEWS;
         Bitmap news = assets == null ? null : assets.sprite("title_news");
         d.rect(c, r[0], r[1], r[2], r[3], 0xFF0C0907);
-        if (news != null) {
-            // 시안 카드보다 납작하므로 아래(글자 자리)를 기준으로 잘라 씁니다.
-            d.photoCover(c, news, r[0], r[1], r[2], r[3], 0.72f, 255);
-        }
+        if (news != null) d.bitmap(c, news, r[0], r[1], r[2], r[3], 255);
         d.roundStroke(c, r[0] + 0.5f, r[1] + 0.5f, r[2] - 0.5f, r[3] - 0.5f, 2f, 1f, 0x99C9A066);
         d.textFaceShadow(c, "새로운 전장이 열렸습니다.", r[0] + 10.5f, r[3] - 18f, 11f,
                 0xFFF1E6D2, Draw.LEFT, Draw.SANS_BOLD);
@@ -338,10 +339,10 @@ public final class Screens {
         d.line(c, 0f, h, Theme.VW, h, 1f, 0x77B8914F);
         d.gradRect(c, 0f, h, Theme.VW, h + 6f, 0x66000000, 0x00000000, true);
 
-        // 로고 — 투구 문장(배경 그림 속 전사의 투구) + TROY
+        // 로고 — 투구 문장(헥토르 스프라이트의 머리, 픽셀 그대로) + TROY
+        d.round(c, 18f, 5f, 70f, 41f, 4f, 0xFF1A120D);
         Bitmap helmet = assets == null ? null : assets.sprite("title_logo_helmet");
-        if (helmet != null) d.photo(c, helmet, 18f, 5f, 70f, 41f, 255);
-        else d.round(c, 18f, 5f, 70f, 41f, 4f, 0xFF15100C);
+        if (helmet != null) d.bitmap(c, helmet, 23f, 6f, 65f, 36f, 255);
         d.roundStroke(c, 18.5f, 5.5f, 69.5f, 40.5f, 4f, 1f, 0xAAB8914F);
         d.spacedFace(c, "TROY", 84f, 28.4f, 25f, 0xFFD9B26A, Draw.LEFT, Draw.CINZEL_BOLD, 3.2f);
         d.spacedFace(c, "GODS. MEN. DESTINY.", 85.4f, 38.6f, 6.2f, 0xFF9C8A6A, Draw.LEFT,
