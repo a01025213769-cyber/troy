@@ -1,6 +1,6 @@
 """
-Cut the title-screen images out of the reference mockup (1536x1024) and remove the
-text that is baked into them, so the game can draw that text itself.
+Cut the faction banners and top-bar icons of the title screen out of the reference
+mockup (1536x1024). (Background and card art: see make_title_pixel.py)
 
 usage: python3 -I make_title_assets.py <reference.png> <out_dir>
 """
@@ -76,40 +76,8 @@ def save_png_rgba(arr_bgra, name):
         os.path.join(OUT, name), optimize=True)
 
 
-# ---- background: the 16:9 band under the old top bar (y 40..904 of the mockup)
-BAND_Y = 40
-band = clean[BAND_Y:BAND_Y + 864].copy()
-# The mockup's own top bar sits in the first rows of the band and is always hidden by
-# the game's top bar; fade it to black so the file itself has no stale UI in it.
-fade = np.clip((np.arange(864) - 40) / 34.0, 0, 1).astype(np.float32)[:, None, None]
-band = (band * (0.08 + 0.92 * fade)).astype(np.uint8)
-# Below the cards the mockup has its own faction band / news card / footer. The game draws
-# its own versions there, so fade that part of the picture to near-black: nothing can
-# show through even where the game's band is slightly transparent.
-rows = np.arange(864) + BAND_Y
-dark = np.clip((rows - 778) / 14.0, 0, 1).astype(np.float32)[:, None, None]
-band = (band * (1 - 0.94 * dark)).astype(np.uint8)
-save_jpg(band, "title_bg.jpg", 88)
-
-# ---- cards (border included)
-cards = {
-    "title_card_campaign.jpg": (255, 262, 850, 446),
-    "title_card_multi.jpg": (255, 455, 850, 608),
-    "title_card_heroes.jpg": (255, 618, 550, 774),
-    "title_card_army.jpg": (561, 618, 850, 774),
-    "title_news.jpg": (1078, 769, 1505, 928),
-}
-for name, (x0, y0, x1, y1) in cards.items():
-    save_jpg(clean[y0:y1, x0:x1], name, 92)
-
-
-# ---- logo emblem: the Spartan warrior's helmet from the same painting
-# (the crop's bottom-right corner overlaps the campaign card, so paint that corner out)
-helm = clean[140:292, 80:300].copy()
-corner = np.zeros(helm.shape[:2], np.uint8)
-corner[262 - 140 - 3:, 253 - 80:] = 255
-helm = cv2.inpaint(helm, corner, 9, cv2.INPAINT_TELEA)
-save_jpg(helm, "title_logo_helmet.jpg", 92)
+# Background, menu cards, news card and logo are pixel art now (tools/make_title_pixel.py).
+# This script only cuts the small pieces that stayed from the mockup: banners and icons.
 
 # ---- banners: rectangular crop with feathered edges
 def feathered(crop, f=5):
@@ -149,6 +117,4 @@ icons = {
 for name, ((x0, y0, x1, y1), lo, hi) in icons.items():
     save_png_rgba(lum_alpha(img[y0:y1, x0:x1], lo, hi), name)
 
-# Debug: full cleaned mockup for visual checking
-save_jpg(clean, "_debug_clean_full.jpg", 90)
 print("ok")

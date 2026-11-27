@@ -265,7 +265,7 @@ new Move("창 찌르기", 0.11f, 0.09f, 0.18f, 130f, 64f, 112f, 10f, 150f, 40f, 
 ## 12. 남은 작업
 
 - 피격 전용 프레임 (지금은 대기 프레임 + 흰색 번쩍임으로 표현)
-- 전투 · 컷신 배경 이미지 교체 (지금은 Canvas 도형으로 그림 — 용량 0). 타이틀(홈)은 사진 배경 적용 완료 (14장 참고)
+- 전투 · 컷신 배경 이미지 교체 (지금은 Canvas 도형으로 그림 — 용량 0). 타이틀(홈)은 픽셀 아트 배경 적용 완료 (14장 참고)
 - 효과음 · BGM 파일 추가
 - 아이템 / 등급, 히든 캐릭터, 인물 설명 카드 (PPT 검토 항목)
 
@@ -278,19 +278,25 @@ new Move("창 찌르기", 0.11f, 0.09f, 0.18f, 130f, 64f, 112f, 10f, 150f, 40f, 
 
 ---
 
-## 14. 타이틀(홈) 화면 — 사진 시안 적용
+## 14. 타이틀(홈) 화면
 
-시안 그림(1536x1024)을 그대로 옮겼습니다. 그림은 스프라이트와 같은 `res/drawable-nodpi/` 에 있고 이름으로 불러옵니다.
+사진 시안의 배치 · 문구 · 버튼은 그대로 두고, 그림은 **게임 스프라이트로 만든 픽셀 아트**입니다.
+전투 배경(make_backdrops.py)과 같은 방식 — 가상 화면의 절반 해상도 + Bayer 디더링 — 이라
+게임에서 2배로, 필터 없이 그려 전투 화면과 같은 느낌이 납니다.
 
-| 파일 | 내용 |
+| 파일 (`res/drawable-nodpi/`) | 내용 |
 |---|---|
-| `title_bg.jpg` | 전체 배경 — 성벽 · 트로이 목마 · 병사들 · 왼쪽 전사 (16:9) |
-| `title_card_campaign / multi / heroes / army.jpg` | 메뉴 카드 사진 4장 (글자 없음 — 문구는 코드가 씀) |
-| `title_news.jpg` | 소식 카드 (불타는 도시) |
-| `title_banner_achaea / troy.png` | 진영 깃발 |
-| `title_icon_coin / silver / laurel / gear.png`, `title_ornament.png`, `title_logo_helmet.jpg` | 아이콘 · 장식 |
+| `title_bg.png` (480x270) | 전체 배경 — 성벽 · 불타는 트로이 · 트로이 목마 · 양군 병사 스프라이트 · 아킬레우스 |
+| `title_card_campaign.png` | 캠페인 시작 — 돌격하는 그리스군 |
+| `title_card_multi.png` | 멀티플레이 — 바다 위 함대 |
+| `title_card_heroes.png` | 영웅 — 헥토르 |
+| `title_card_army.png` | 군대 관리 — 방패를 든 중장보병 대열 |
+| `title_news.png` | 소식 카드 — 불타는 도시 |
+| `title_logo_helmet.png` | 로고 옆 투구 (헥토르 스프라이트의 머리) |
+| `title_banner_*`, `title_icon_*`, `title_ornament` | 진영 깃발 · 재화/설정 아이콘 · 하단 장식 (시안에서 잘라 냄) |
 
-글꼴은 `assets/fonts/` (나눔명조 Bold · Cinzel, 둘 다 OFL 무료 글꼴 — 라이선스 파일 동봉).
+- 스프라이트를 바꾼 뒤 `python tools/make_title_pixel.py app/src/main/res/drawable-nodpi` 를 돌리면 타이틀 그림도 새 스프라이트로 다시 만들어집니다 (Python + numpy + Pillow).
+- 글꼴은 `assets/fonts/` (나눔명조 Bold · Cinzel, OFL 무료 글꼴 — 라이선스 파일 동봉).
 
 | 버튼 | 기능 |
 |---|---|
@@ -304,4 +310,3 @@ new Move("창 찌르기", 0.11f, 0.09f, 0.18f, 130f, 64f, 112f, 10f, 150f, 40f, 
 - 문구 · 버튼 위치는 `ui/Screens.java` 의 `drawTitle` 과 맨 위 `TITLE_*` 좌표만 고치면 됩니다.
 - 재화(12,450 / 320)는 아직 재화 시스템이 없어 시안 숫자를 그대로 표시합니다. 월계관 숫자는 클리어한 챕터 수입니다.
 - 주요 목표는 실제 진행도(클리어 챕터 수)로 체크됩니다.
-- 그림을 다시 뽑으려면 `tools/make_title_assets.py <시안.png> <출력폴더>` (Python + OpenCV).
